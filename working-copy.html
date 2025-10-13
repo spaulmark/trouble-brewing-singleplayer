@@ -391,138 +391,119 @@
         townsfolk: [
           {
             name: "Washerwoman",
-            ability:
-              "You start knowing that 1 of 2 players is a particular Townsfolk.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Librarian",
-            ability:
-              "You start knowing that 1 of 2 players is a particular Outsider.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Investigator",
-            ability:
-              "You start knowing that 1 of 2 players is a particular Minion.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Chef",
-            ability:
-              "You start knowing how many pairs of evil players there are.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Empath",
-            ability:
-              "Each night, you learn how many of your 2 alive neighbours are evil.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Fortune Teller",
-            ability:
-              "Each night, choose 2 players: you learn if either is a Demon.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Undertaker",
-            ability:
-              "Each night*, you learn which character died by execution today.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Monk",
-            ability:
-              "Each night*, choose a player (not yourself): they are safe from the Demon tonight.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Ravenkeeper",
-            ability:
-              "If you die at night, you are woken to choose a player: you learn their character.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Virgin",
-            ability:
-              "The 1st time you are nominated, if the nominator is a Townsfolk, they are executed immediately.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Slayer",
-            ability:
-              "Once per game, during the day, publicly choose a player: if they are the Demon, they die.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Soldier",
-            ability: "You are safe from the Demon.",
             type: "townsfolk",
+            evil: false,
           },
           {
             name: "Mayor",
-            ability:
-              "If only 3 players live & no execution occurs, your team wins.",
             type: "townsfolk",
+            evil: false,
           },
         ],
         outsiders: [
           {
             name: "Butler",
-            ability:
-              "Each night, choose a player (not yourself): tomorrow, you may only vote if they are voting too.",
             type: "outsider",
+            evil: false,
           },
           {
             name: "Drunk",
-            ability:
-              "You do not know you are the Drunk. You think you are a Townsfolk character, but you are not.",
             type: "outsider",
+            evil: false,
           },
           {
             name: "Recluse",
-            ability:
-              "You might register as evil & as a Minion or Demon, even if dead.",
             type: "outsider",
+            evil: false,
           },
           {
             name: "Saint",
-            ability: "If you die by execution, your team loses.",
             type: "outsider",
+            evil: false,
           },
         ],
         minions: [
           {
             name: "Poisoner",
-            ability:
-              "Each night, choose a player: they are poisoned tonight and tomorrow day.",
             type: "minion",
+            evil: true,
           },
           {
             name: "Spy",
-            ability:
-              "Each night, you see the Grimoire. You might register as good & as a Townsfolk or Outsider, even if dead.",
             type: "minion",
+            evil: true,
           },
           {
             name: "Scarlet Woman",
-            ability:
-              "If there are 5 or more players alive & the Demon dies, you become the Demon.",
             type: "minion",
+            evil: true,
           },
           {
             name: "Baron",
-            ability: "There are extra Outsiders in play. [+2 Outsiders]",
             type: "minion",
+            evil: true,
           },
         ],
         demons: [
           {
             name: "Imp",
-            ability:
-              "Each night*, choose a player: they die. If you kill yourself this way, a Minion becomes the Imp.",
             type: "demon",
+            evil: true,
           },
         ],
       };
@@ -559,7 +540,7 @@
         "Q",
       ];
 
-      //
+      // dom elements
       const playerCountSelect = document.getElementById("player-count");
       const generateBtn = document.getElementById("generate-btn");
       const circleContainer = document.getElementById("circle-container");
@@ -569,19 +550,36 @@
       const killModeToggleBtn = document.getElementById("kill-mode-toggle");
 
       // magic numbers
-
       let nightPhaseMS = 1500;
 
       // game state variables
       let currentPhase = "day";
       let phaseNumber = 1;
+      let players = [
+        /*{
+        seat: 0,
+        name: "ABCDEFG"
+        character: {name: "drunk", type: "outsider"}        
+        evil: true/false     // only 2 alignments in botc
+        appears_as: "my bluff" // ie. fortune teller
+        my_info_text: "A/B yes, C/D no"
+        droisoned: true/false
+      }*/
+      ];
+      /*
+      role template:
+      fortune teller: {
+      default_choicebubble: "Who should I pick tonight?"
+      }
+      */
 
       // ui state variables
       let currentCenterAction = null;
       let canExecutePlayer = true;
       let isKillMode = false;
 
-      // TODO: disable new game button during "night phase"
+      // TODO: create a grim reveal button
+      // it makes you lose and reveals the grim and enables the new game button
 
       killModeToggleBtn.addEventListener("click", () => {
         isKillMode = !isKillMode;
@@ -621,7 +619,7 @@
         }
       }
 
-      // --- LOGIC ---
+      // --- GAME LOGIC ---
       function shuffleArray(array) {
         for (let i = array.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -656,10 +654,10 @@
       }
 
       function executePlayer(playerToken) {
+        // TODO: get player ID
         if (!canExecutePlayer || playerToken.classList.contains("dead")) {
           return;
         }
-        console.log("Executing player...");
         playerToken.classList.add("dead");
         transitionToNight(); // Just call the new function
       }
@@ -669,32 +667,10 @@
         if (!canExecutePlayer) {
           return;
         }
+        // TODO: if a healthy saint is executed, town loses
         playerToken.classList.add("dead");
         transitionToNight();
       }
-
-      // player class?
-      /*
-
-      role template:
-
-      fortune teller: {
-
-      default_choicebubble: "Who should I pick tonight?"
-      }
-
-
-
-      {
-        seat: 0
-        role: "role"           // ie. drunk
-        isEvil: true/false     // only 2 alignments in botc
-        appears_as: "my bluff" // ie. fortune teller
-        my_info_text: "A/B yes, C/D no"
-
-      }
-      
-      */
 
       function night1() {
         // poisoner
@@ -718,7 +694,8 @@
       }
 
       function generateAndDisplayScript() {
-        setupCenterButton(null, null, false); // ADD THIS to hide on new game
+        killModeToggleBtn.disabled = false;
+        setupCenterButton(null, null, false);
         const playerCount = parseInt(playerCountSelect.value, 10);
         let counts = { ...playerCounts[playerCount] };
 
@@ -745,6 +722,9 @@
         const drunkIndex = initialOutsiders.findIndex(
           (o) => o.name === "Drunk"
         );
+
+        // TODO: no, fix this NOW.
+
         // deletes the drunk token from outsiders
         if (drunkIndex > -1) {
           isDrunkInPlay = true;
@@ -757,7 +737,6 @@
         if (isDrunkInPlay) {
           const drunksRole = shuffledTownsfolk[counts.townsfolk];
           if (drunksRole) {
-            console.log(drunksRole);
             drunksRolePlaceholder = { ...drunksRole, isDrunkPlaceholder: true };
             selectedTownsfolk.push(drunksRolePlaceholder);
           }
@@ -772,8 +751,11 @@
           ...selectedDemons,
         ];
         const shuffledTokens = shuffleArray(allTokensForAssignment);
+
+        console.log(shuffledTokens); // TODO: we gotta set this up better
+
         const currentPlayers = shuffleArray(playerNames.slice(0, playerCount));
-        // TODO: night 1 actions here lol! and save players to a list or something.
+        night1(); // TODO: night 1
         phaseNumber = 1;
         updatePhaseDisplay();
         displayPlayerCircle(shuffledTokens, currentPlayers);
@@ -816,6 +798,21 @@
 
           circleContainer.appendChild(tokenEl);
         }
+      }
+
+      function endGame(goodWon) {
+        isKillMode = false;
+        document.body.classList.remove("kill-mode-active");
+        container.classList.remove("kill-mode-active");
+        killModeToggleBtn.textContent = "Execute Mode: OFF";
+
+        killModeToggleBtn.disabled = true;
+
+        phaseDisplay.textContent = goodWon ? "GOOD WINS" : "EVIL WINS";
+
+        setupCenterButton(null, null, false);
+
+        canExecutePlayer = false;
       }
 
       generateBtn.addEventListener("click", generateAndDisplayScript);
