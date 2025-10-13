@@ -16,7 +16,37 @@
         --minion-color: #e74c3c;
         --demon-color: #c0392b;
       }
+      #center-action-btn {
+        position: absolute;
+        top: 65%; /* Position it below the DAY/NIGHT text */
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 20; /* Make sure it's on top */
 
+        padding: 10px 20px;
+        font-size: 1.1em;
+        font-weight: bold;
+        background-color: #555;
+        color: var(--text-color);
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        cursor: pointer;
+
+        /* For the fade-in/out effect */
+        visibility: hidden;
+        opacity: 0;
+      }
+
+      #center-action-btn:hover {
+        background-color: #666;
+        border-color: #777;
+      }
+
+      /* A class to make the button visible */
+      #center-action-btn.visible {
+        visibility: visible;
+        opacity: 1;
+      }
       #kill-mode-toggle {
         position: fixed;
         bottom: 20px;
@@ -347,6 +377,7 @@
       </div>
       <div id="player-assignments">
         <div id="phase-display"></div>
+        <button id="center-action-btn"></button>
         <div class="circle-container" id="circle-container">
           <!-- players appear here -->
         </div>
@@ -528,31 +559,45 @@
         "Q",
       ];
 
+      //
       const playerCountSelect = document.getElementById("player-count");
       const generateBtn = document.getElementById("generate-btn");
       const circleContainer = document.getElementById("circle-container");
       const container = document.getElementById("container");
       const phaseDisplay = document.getElementById("phase-display");
-
+      const centerActionButton = document.getElementById("center-action-btn");
       const killModeToggleBtn = document.getElementById("kill-mode-toggle");
-      let isKillMode = false;
+
+      // magic numbers
+
+      let nightPhaseMS = 1500;
+
+      // game state variables
       let currentPhase = "day";
       let phaseNumber = 1;
+
+      // ui state variables
+      let currentCenterAction = null;
       let canExecutePlayer = true;
+      let isKillMode = false;
+
+      // TODO: disable new game button during "night phase"
 
       killModeToggleBtn.addEventListener("click", () => {
-        // Toggle the state
         isKillMode = !isKillMode;
-
-        // Toggle the class on the body to trigger CSS changes
         document.body.classList.toggle("kill-mode-active", isKillMode);
         container.classList.toggle("kill-mode-active", isKillMode);
 
-        // Update the button text to reflect the current mode
         if (isKillMode) {
           killModeToggleBtn.textContent = "Execute Mode: ON";
+          // If it's daytime, show the "No Execution" button
+          if (currentPhase === "day") {
+            setupCenterButton("No Execution", transitionToNight);
+          }
         } else {
           killModeToggleBtn.textContent = "Execute Mode: OFF";
+          // Always hide the button when not in kill mode
+          setupCenterButton(null, null, false);
         }
       });
 
@@ -560,6 +605,19 @@
         if (phaseDisplay) {
           // Check that the element exists
           phaseDisplay.textContent = `${currentPhase.toUpperCase()} ${phaseNumber}`;
+        }
+      }
+
+      // --- UI Logic ---
+
+      function setupCenterButton(text, action, isVisible = true) {
+        if (isVisible) {
+          centerActionButton.textContent = text;
+          currentCenterAction = action; // Assign the function to our variable
+          centerActionButton.classList.add("visible");
+        } else {
+          centerActionButton.classList.remove("visible");
+          currentCenterAction = null; // Clear the action
         }
       }
 
@@ -577,28 +635,42 @@
         return shuffled.slice(0, numItems);
       }
 
+      function transitionToNight() {
+        setupCenterButton(null, null, false); // Hide the button during the night
+        currentPhase = "night";
+        canExecutePlayer = false; // No more executions
+        phaseNumber++;
+        updatePhaseDisplay();
+
+        othernights(); // TODO: this
+
+        setTimeout(() => {
+          currentPhase = "day";
+          canExecutePlayer = true;
+          updatePhaseDisplay();
+          // When the day starts, show the button again if we are in kill mode
+          if (isKillMode) {
+            setupCenterButton("No Execution", transitionToNight);
+          }
+        }, nightPhaseMS);
+      }
+
+      function executePlayer(playerToken) {
+        if (!canExecutePlayer || playerToken.classList.contains("dead")) {
+          return;
+        }
+        console.log("Executing player...");
+        playerToken.classList.add("dead");
+        transitionToNight(); // Just call the new function
+      }
+
       function executePlayer(playerToken) {
         // check if an execution is currently allowed
         if (!canExecutePlayer) {
           return;
         }
-
         playerToken.classList.add("dead");
-
-        // Disable further executions for this day/phase
-        canExecutePlayer = false;
-
-        currentPhase = "night";
-        phaseNumber++;
-        updatePhaseDisplay();
-        othernights(); // TODO: this
-
-        setTimeout(() => {
-          currentPhase = "day";
-          updatePhaseDisplay();
-          canExecutePlayer = true;
-          // TODO: text in the center of the circle saying what phase it is and stuff
-        }, 1500); // 1.5 second night
+        transitionToNight();
       }
 
       // player class?
@@ -646,6 +718,7 @@
       }
 
       function generateAndDisplayScript() {
+        setupCenterButton(null, null, false); // ADD THIS to hide on new game
         const playerCount = parseInt(playerCountSelect.value, 10);
         let counts = { ...playerCounts[playerCount] };
 
@@ -728,7 +801,7 @@
           tokenEl.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) translate(60px) rotate(-${angle}deg)`;
 
           tokenEl.innerHTML = `
-  <div class="speech-bubble visible">Hello</div>
+  <div class="speech-bubble not-visible">Hello</div>
   <strong>${playerName}</strong>
   <span>${role.name}</span>
 `;
@@ -747,6 +820,11 @@
 
       generateBtn.addEventListener("click", generateAndDisplayScript);
       document.addEventListener("DOMContentLoaded", generateAndDisplayScript);
+      centerActionButton.addEventListener("click", () => {
+        if (typeof currentCenterAction === "function") {
+          currentCenterAction(); // Execute the stored function
+        }
+      });
     </script>
   </body>
 </html>
