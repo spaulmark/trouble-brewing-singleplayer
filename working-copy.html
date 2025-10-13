@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Clocktower Simulator</title>
     <style>
-      /* --- Basic Styling --- */
       :root {
         --bg-color: #1a1a1a;
         --text-color: #e0e0e0;
@@ -34,21 +33,18 @@
         transition: background-color 0.3s, color 0.3s;
       }
 
-      /* Style for the button when kill mode is ON */
       body.kill-mode-active #kill-mode-toggle {
         background-color: var(--primary-color);
         color: white;
         border-color: #c0392b;
       }
 
-      /* Smooth transition for the body background color change */
       body {
         transition: background-color 0.4s ease;
       }
 
-      /* Style for the body when kill mode is ON */
       body.kill-mode-active {
-        background-color: #2a1a1a; /* Subtle dark red background */
+        background-color: #2a1a1a;
       }
 
       .container.kill-mode-active {
@@ -62,17 +58,16 @@
       }
 
       .player-token {
-        /* Add this line to the existing .player-token rule */
         position: relative;
       }
 
       .speech-bubble {
         pointer-events: none;
         position: absolute;
-        bottom: 100%; /* Position it directly above the token */
+        bottom: 100%;
         left: 50%;
         transform: translateX(-50%);
-        margin-bottom: 10px; /* Space between bubble and token */
+        margin-bottom: 10px;
 
         background-color: #e0e0e0;
         color: #1a1a1a;
@@ -81,16 +76,13 @@
         font-size: 0.85em;
         font-weight: bold;
         text-align: center;
-        width: 140px; /* Give it a fixed width to handle longer text */
         box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
 
-        /* Hide it by default until we add content */
         visibility: hidden;
         opacity: 0;
         transition: opacity 0.2s ease;
       }
 
-      /* The little triangle pointing down */
       .speech-bubble::after {
         content: "";
         position: absolute;
@@ -102,7 +94,6 @@
         border-color: #e0e0e0 transparent transparent transparent;
       }
 
-      /* A simple class to make the bubble visible */
       .speech-bubble.visible {
         visibility: visible;
         opacity: 1;
@@ -139,7 +130,6 @@
         margin-bottom: 20px;
       }
 
-      /* --- Controls --- */
       .controls {
         display: flex;
         justify-content: center;
@@ -175,7 +165,6 @@
         background-color: #c0392b;
       }
 
-      /* --- Script Display --- */
       .script-display {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -211,6 +200,26 @@
         color: var(--outsider-color);
         margin-left: 8px;
       }
+      /* --- Player Circle Display --- */
+      #player-assignments h2 {
+        margin-top: 40px;
+      }
+
+      #phase-display {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+
+        font-size: 7em;
+        font-weight: bold;
+        color: rgba(224, 224, 224, 0.1);
+        text-transform: uppercase;
+        letter-spacing: 5px;
+
+        pointer-events: none;
+        z-index: 10;
+      }
 
       /* --- Player Circle Display --- */
       #player-assignments h2 {
@@ -219,7 +228,7 @@
 
       .circle-container {
         position: relative;
-        width: 700px; /* Adjust size as needed */
+        width: 700px;
         height: 700px;
         margin: 100px auto 40px;
         border: 2px dashed var(--border-color);
@@ -232,7 +241,7 @@
         left: 50%;
         width: 120px;
         height: 60px;
-        margin: -30px 0 0 -60px; /* (height/2) and (width/2) */
+        margin: -30px 0 0 -60px;
 
         display: flex;
         flex-direction: column;
@@ -245,8 +254,31 @@
         background-color: var(--card-bg);
         font-size: 0.9em;
 
-        transition: opacity 0.3s ease;
-        user-select: none; /* Prevent text selection on click */
+        transition: opacity 0.1s ease;
+        user-select: none;
+
+        transition: box-shadow 0.1s ease-out, transform 0.1s ease-out;
+        will-change: transform, box-shadow;
+      }
+
+      .player-token.townsfolk:hover {
+        box-shadow: 0 0 15px 3px var(--townsfolk-color);
+      }
+      .player-token.outsider:hover {
+        box-shadow: 0 0 15px 3px var(--outsider-color);
+      }
+      .player-token.minion:hover {
+        box-shadow: 0 0 15px 3px var(--minion-color);
+      }
+      .player-token.demon:hover {
+        box-shadow: 0 0 15px 3px var(--demon-color);
+      }
+
+      /* dead ppl dont glow */
+      .player-token.dead:hover {
+        transform: none;
+        box-shadow: none;
+        cursor: not-allowed;
       }
 
       /* Style for dead players */
@@ -314,8 +346,9 @@
         <button id="generate-btn">New Game</button>
       </div>
       <div id="player-assignments">
+        <div id="phase-display"></div>
         <div class="circle-container" id="circle-container">
-          <!-- Player tokens will be generated here by -->
+          <!-- players appear here -->
         </div>
         <button id="kill-mode-toggle">Execute Mode: OFF</button>
       </div>
@@ -499,10 +532,12 @@
       const generateBtn = document.getElementById("generate-btn");
       const circleContainer = document.getElementById("circle-container");
       const container = document.getElementById("container");
+      const phaseDisplay = document.getElementById("phase-display");
 
       const killModeToggleBtn = document.getElementById("kill-mode-toggle");
       let isKillMode = false;
       let currentPhase = "day";
+      let phaseNumber = 1;
       let canExecutePlayer = true;
 
       killModeToggleBtn.addEventListener("click", () => {
@@ -521,6 +556,13 @@
         }
       });
 
+      function updatePhaseDisplay() {
+        if (phaseDisplay) {
+          // Check that the element exists
+          phaseDisplay.textContent = `${currentPhase.toUpperCase()} ${phaseNumber}`;
+        }
+      }
+
       // --- LOGIC ---
       function shuffleArray(array) {
         for (let i = array.length - 1; i > 0; i--) {
@@ -536,37 +578,24 @@
       }
 
       function executePlayer(playerToken) {
-        // Guard 1: Check if an execution is currently allowed
+        // check if an execution is currently allowed
         if (!canExecutePlayer) {
-          console.log("An execution has already happened this day.");
-          return; // Stop the function
-        }
-
-        // Guard 2: Don't execute already dead players
-        if (playerToken.classList.contains("dead")) {
           return;
         }
 
-        // --- If guards pass, proceed with execution ---
-        console.log("Executing player...");
         playerToken.classList.add("dead");
 
         // Disable further executions for this day/phase
         canExecutePlayer = false;
 
-        // You could add a visual cue here, like updating a game log
-        // For now, let's log it and simulate moving to the night phase
-        console.log("The day ends. Night falls...");
         currentPhase = "night";
+        phaseNumber++;
+        updatePhaseDisplay();
+        othernights(); // TODO: this
 
-        // Here you would call other functions that happen at night
-        othernights();
-
-        // Optional: Add a delay before you can proceed to the next day
-        // to simulate the night phase passing.
         setTimeout(() => {
-          console.log("Night is over. A new day begins.");
           currentPhase = "day";
+          updatePhaseDisplay();
           canExecutePlayer = true;
           // TODO: text in the center of the circle saying what phase it is and stuff
         }, 1500); // 1.5 second night
@@ -671,7 +700,9 @@
         ];
         const shuffledTokens = shuffleArray(allTokensForAssignment);
         const currentPlayers = shuffleArray(playerNames.slice(0, playerCount));
-
+        // TODO: night 1 actions here lol! and save players to a list or something.
+        phaseNumber = 1;
+        updatePhaseDisplay();
         displayPlayerCircle(shuffledTokens, currentPlayers);
       }
 
