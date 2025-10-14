@@ -553,25 +553,28 @@
       let nightPhaseMS = 1500;
 
       // game state variables
+      let evilHasGrim = false;
       let currentPhase = "day";
       let phaseNumber = 1;
-      let players = [
+      let gameStatePlayers = [
         /*{
-        seat: 0,
-        name: "ABCDEFG"
-        character: {name: "drunk", type: "outsider"}        
-        evil: true/false     // only 2 alignments in botc
-        appears_as: "my bluff" // ie. fortune teller
-        my_info_text: "A/B yes, C/D no"
-        droisoned: true/false
-      }*/
+              seat: 0,
+              name: "ABCDEFG"
+              character:  "drunk",
+              type: "outsider"
+              evil: true/false     // only 2 alignments in botc
+              alive: true/false
+              appears_as: {role: "mayor", type: "townsfolk"}
+              my_info_text: "A/B yes, C/D no"
+              droisoned: true/false
+            }*/
       ];
       /*
-      role template:
-      fortune teller: {
-      default_choicebubble: "Who should I pick tonight?"
-      }
-      */
+            role template:
+            fortune teller: {
+            default_choicebubble: "Who should I pick tonight?"
+            }
+            */
 
       // ui state variables
       let currentCenterAction = null;
@@ -630,7 +633,9 @@
 
       function getRandomItems(array, numItems) {
         const shuffled = shuffleArray([...array]);
-        return shuffled.slice(0, numItems);
+        const selected = shuffled.slice(0, numItems);
+        const notSelected = shuffled.slice(numItems);
+        return { selected, notSelected };
       }
 
       function transitionToNight() {
@@ -655,14 +660,6 @@
 
       function executePlayer(playerToken) {
         // TODO: get player ID
-        if (!canExecutePlayer || playerToken.classList.contains("dead")) {
-          return;
-        }
-        playerToken.classList.add("dead");
-        transitionToNight(); // Just call the new function
-      }
-
-      function executePlayer(playerToken) {
         // check if an execution is currently allowed
         if (!canExecutePlayer) {
           return;
@@ -694,76 +691,142 @@
       }
 
       function generateAndDisplayScript() {
+        evilHasGrim = false;
         killModeToggleBtn.disabled = false;
         setupCenterButton(null, null, false);
         const playerCount = parseInt(playerCountSelect.value, 10);
         let counts = { ...playerCounts[playerCount] };
+        const baseOutsiderCount = counts.outsiders;
 
         // --- SCRIPT GENERATION ---
+        // generate demon (its imp!)
+        const selectedDemons = getRandomItems(
+          characters.demons,
+          counts.demons
+        ).selected;
+        // generate minions
         const selectedMinions = getRandomItems(
           characters.minions,
           counts.minions
-        );
+        ).selected;
         const isBaronInPlay = selectedMinions.some(
           (minion) => minion.name === "Baron"
         );
+
         if (isBaronInPlay) {
           counts.townsfolk -= 2;
           counts.outsiders += 2;
         }
-
-        const initialOutsiders = getRandomItems(
+        const spyInPlay = selectedMinions.some(
+          (minion) => minion.name === "Spy"
+        );
+        evilHasGrim = spyInPlay;
+        // generate outsiders
+        const outsiderRNG = getRandomItems(
           characters.outsiders,
           counts.outsiders
         );
-        let finalOutsiders = [...initialOutsiders];
-        let isDrunkInPlay = false;
+        const selectedOutsiders = outsiderRNG.selected;
+        const notInPlayOutsiders = outsiderRNG.notSelected;
 
-        const drunkIndex = initialOutsiders.findIndex(
-          (o) => o.name === "Drunk"
+        const townsfolkRNG = getRandomItems(
+          characters.townsfolk,
+          counts.townsfolk
         );
+        const selectedTownsfolk = townsfolkRNG.selected;
+        const notInPlayTownsfolk = townsfolkRNG.notSelected;
 
-        // TODO: no, fix this NOW.
+        const faceUpOutsiders = selectedOutsiders.filter(
+          (item) => item.name !== "Drunk"
+        ).length;
 
-        // deletes the drunk token from outsiders
-        if (drunkIndex > -1) {
-          isDrunkInPlay = true;
-          finalOutsiders.splice(drunkIndex, 1);
-        }
+        // calculate correct number of outsider bluffs that can be given
+        let maxOutsiderBluffs = baseOutsiderCount + 2 - faceUpOutsiders;
 
-        const shuffledTownsfolk = shuffleArray([...characters.townsfolk]);
-        let selectedTownsfolk = shuffledTownsfolk.slice(0, counts.townsfolk);
-        let drunksRolePlaceholder = null;
-        if (isDrunkInPlay) {
-          const drunksRole = shuffledTownsfolk[counts.townsfolk];
-          if (drunksRole) {
-            drunksRolePlaceholder = { ...drunksRole, isDrunkPlaceholder: true };
-            selectedTownsfolk.push(drunksRolePlaceholder);
+        const bluffableOutsiders = notInPlayOutsiders
+          .filter((item) => item.name !== "Drunk")
+          .slice(0, maxOutsiderBluffs);
+
+        // if there is a drunk, pop one item from notinplaytownsfolk
+        const isDrunkInPlay =
+          selectedOutsiders.findIndex((o) => o.name === "Drunk") > -1;
+        const designatedDrunkBluff = isDrunkInPlay
+          ? notInPlayTownsfolk.pop()
+          : null;
+
+        const bluffRNG = getRandomItems(
+          [...bluffableOutsiders, ...notInPlayTownsfolk],
+          3
+        );
+        const demonBluffs = bluffRNG.selected;
+        const unusedBluffs = bluffRNG.notSelected;
+
+        if (selectedMinions.length === 3) {
+          // if there is spy, you get another free bluff! yay
+          if (spyInPlay) {
+            demonBluffs.push(unusedBluffs.pop());
+          } else {
+            // otherwise you just have to randomly claim something.
+            demonBluffs.push(
+              getRandomItems([...characters.townsfolk, characters.outsiders], 1)
+                .selected[0]
+            );
           }
         }
+        const ingamePlayers = shuffleArray(playerNames.slice(0, playerCount));
 
-        const selectedDemons = getRandomItems(characters.demons, counts.demons);
-
-        const allTokensForAssignment = [
-          ...selectedTownsfolk,
-          ...finalOutsiders,
-          ...selectedMinions,
+        const shuffledTokens = shuffleArray([
           ...selectedDemons,
-        ];
-        const shuffledTokens = shuffleArray(allTokensForAssignment);
+          ...selectedMinions,
+          ...selectedOutsiders,
+          ...selectedTownsfolk,
+        ]);
 
-        console.log(shuffledTokens); // TODO: we gotta set this up better
+        // collect all the tokens and then turn them into players
+        let demonBluffIndex = 0;
+        gameStatePlayers = [];
+        for (let i = 0; i < shuffledTokens.length; i++) {
+          // minions/demons each get a bluff
+          const token = shuffledTokens[i];
+          let appears_as = { role: token.name, type: token.type };
+          if (token.type === "minion" || token.type === "demon") {
+            appears_as = {
+              role: demonBluffs[demonBluffIndex].name,
+              type: demonBluffs[demonBluffIndex].type,
+            };
+            demonBluffIndex++;
+          }
+          if (token.name === "Drunk") {
+            appears_as = {
+              role: designatedDrunkBluff.name,
+              type: designatedDrunkBluff.type,
+            };
+          }
 
-        const currentPlayers = shuffleArray(playerNames.slice(0, playerCount));
+          const player = {
+            seat: i,
+            name: ingamePlayers[i],
+            role: token.name,
+            type: token.type,
+            evil: token.evil,
+            alive: true,
+            appears_as,
+            info_text: "",
+            droisoned: token.name === "Drunk",
+          };
+          gameStatePlayers.push(player);
+        }
+
         night1(); // TODO: night 1
         phaseNumber = 1;
         updatePhaseDisplay();
-        displayPlayerCircle(shuffledTokens, currentPlayers);
+        displayPlayerCircle(false);
       }
 
-      function displayPlayerCircle(roles, names) {
+      function displayPlayerCircle(grim_reveal = false) {
         circleContainer.innerHTML = "";
-        const playerCount = names.length;
+        const playerCount = gameStatePlayers.length;
+        console.log(gameStatePlayers);
         const radius = circleContainer.offsetWidth / 2 - 70; // 70 is a magic number for spacing
 
         for (let i = 0; i < playerCount; i++) {
@@ -773,8 +836,10 @@
           const x = radius * Math.cos(angleRad);
           const y = radius * Math.sin(angleRad);
 
-          const role = roles[i];
-          const playerName = names[i];
+          const role = grim_reveal
+            ? gameStatePlayers[i]
+            : gameStatePlayers[i].appears_as;
+          const playerName = gameStatePlayers[i].name;
 
           const tokenEl = document.createElement("div");
           tokenEl.className = `player-token ${role.type}`;
@@ -783,10 +848,10 @@
           tokenEl.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) translate(60px) rotate(-${angle}deg)`;
 
           tokenEl.innerHTML = `
-  <div class="speech-bubble not-visible">Hello</div>
-  <strong>${playerName}</strong>
-  <span>${role.name}</span>
-`;
+        <div class="speech-bubble not-visible">Hello</div>
+        <strong>${playerName}</strong>
+        <span>${role.role}</span>
+      `;
           // Add a click listener to toggle the 'dead' class on the token.
           // This allows you to mark players as executed.
           tokenEl.addEventListener("click", () => {
