@@ -107,6 +107,7 @@
         font-weight: bold;
         text-align: center;
         box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+        width: 140px;
 
         visibility: hidden;
         opacity: 0;
@@ -246,11 +247,18 @@
         color: rgba(224, 224, 224, 0.1);
         text-transform: uppercase;
         letter-spacing: 5px;
-
+        text-align: center;
         pointer-events: none;
         z-index: 10;
       }
-
+      #phase-display.good-wins {
+        color: var(--townsfolk-color);
+        opacity: 1;
+      }
+      #phase-display.evil-wins {
+        color: var(--demon-color);
+        opacity: 1;
+      }
       /* --- Player Circle Display --- */
       #player-assignments h2 {
         margin-top: 40px;
@@ -258,8 +266,8 @@
 
       .circle-container {
         position: relative;
-        width: 700px;
-        height: 700px;
+        width: 725px;
+        height: 725px;
         margin: 100px auto 40px;
         border: 2px dashed var(--border-color);
         border-radius: 50%;
@@ -565,7 +573,8 @@
               evil: true/false     // only 2 alignments in botc
               alive: true/false
               appears_as: {role: "mayor", type: "townsfolk"}
-              my_info_text: "A/B yes, C/D no"
+              my_info_text: "A/B yes, C/D no",
+              gameover_text: "i saw myself as mayor",
               droisoned: true/false
             }*/
       ];
@@ -658,14 +667,21 @@
         }, nightPhaseMS);
       }
 
-      function executePlayer(playerToken) {
-        // TODO: get player ID
-        // check if an execution is currently allowed
+      function executePlayer(playerToken, id) {
+        // execution is not allowed during night phase
         if (!canExecutePlayer) {
           return;
         }
-        // TODO: if a healthy saint is executed, town loses
+        const player = gameStatePlayers[id];
+
+        player.alive = false;
         playerToken.classList.add("dead");
+
+        // if a healthy saint is executed, their team loses.
+        if (player.role === "Saint" && player.droisoned === false) {
+          endGame(player.evil);
+          return;
+        }
         transitionToNight();
       }
 
@@ -693,6 +709,9 @@
       function generateAndDisplayScript() {
         evilHasGrim = false;
         killModeToggleBtn.disabled = false;
+        canExecutePlayer = true;
+        phaseDisplay.classList.remove("good-wins", "evil-wins");
+
         setupCenterButton(null, null, false);
         const playerCount = parseInt(playerCountSelect.value, 10);
         let counts = { ...playerCounts[playerCount] };
@@ -789,11 +808,13 @@
           // minions/demons each get a bluff
           const token = shuffledTokens[i];
           let appears_as = { role: token.name, type: token.type };
+          let gameover_text = "";
           if (token.type === "minion" || token.type === "demon") {
             appears_as = {
               role: demonBluffs[demonBluffIndex].name,
               type: demonBluffs[demonBluffIndex].type,
             };
+            gameover_text = `I was the ${token.name} bluffing ${appears_as.role}`;
             demonBluffIndex++;
           }
           if (token.name === "Drunk") {
@@ -801,6 +822,7 @@
               role: designatedDrunkBluff.name,
               type: designatedDrunkBluff.type,
             };
+            gameover_text = `I saw myself as ${designatedDrunkBluff.name}`;
           }
 
           const player = {
@@ -813,6 +835,7 @@
             appears_as,
             info_text: "",
             droisoned: token.name === "Drunk",
+            gameover_text,
           };
           gameStatePlayers.push(player);
         }
@@ -826,29 +849,38 @@
       function displayPlayerCircle(grim_reveal = false) {
         circleContainer.innerHTML = "";
         const playerCount = gameStatePlayers.length;
-        console.log(gameStatePlayers);
+        console.log(gameStatePlayers); // TODO: debug mode
         const radius = circleContainer.offsetWidth / 2 - 70; // 70 is a magic number for spacing
 
         for (let i = 0; i < playerCount; i++) {
+          const player = gameStatePlayers[i];
           const angle = (i / playerCount) * 360;
           const angleRad = angle * (Math.PI / 180);
 
           const x = radius * Math.cos(angleRad);
           const y = radius * Math.sin(angleRad);
 
-          const role = grim_reveal
-            ? gameStatePlayers[i]
-            : gameStatePlayers[i].appears_as;
-          const playerName = gameStatePlayers[i].name;
+          const role = grim_reveal ? player : player.appears_as;
+          const playerName = player.name;
 
           const tokenEl = document.createElement("div");
-          tokenEl.className = `player-token ${role.type}`;
+          tokenEl.className = `player-token ${role.type} ${
+            player.alive ? "" : "dead"
+          }`;
 
           // The transform places the element around the circle. The final rotate(-angle) keeps the text upright.
           tokenEl.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) translate(60px) rotate(-${angle}deg)`;
 
+          let speech = "";
+
+          if (grim_reveal) {
+            speech = player.gameover_text || "";
+          } else {
+            // TODO: what will appear in the speech bubble?
+          }
+
           tokenEl.innerHTML = `
-        <div class="speech-bubble not-visible">Hello</div>
+        <div class="speech-bubble${speech ? " visible" : ""}">${speech}</div>
         <strong>${playerName}</strong>
         <span>${role.role}</span>
       `;
@@ -856,7 +888,7 @@
           // This allows you to mark players as executed.
           tokenEl.addEventListener("click", () => {
             if (isKillMode) {
-              executePlayer(tokenEl);
+              executePlayer(tokenEl, i);
             }
             // TODO: If kill mode is off, clicking does nothing. (for now)
           });
@@ -873,11 +905,15 @@
 
         killModeToggleBtn.disabled = true;
 
-        phaseDisplay.textContent = goodWon ? "GOOD WINS" : "EVIL WINS";
+        phaseDisplay.classList.remove("good-wins", "evil-wins");
+        phaseDisplay.textContent = goodWon ? "GOOD WIN" : "EVIL WIN";
+        phaseDisplay.classList.add(goodWon ? "good-wins" : "evil-wins");
 
         setupCenterButton(null, null, false);
 
         canExecutePlayer = false;
+
+        displayPlayerCircle(true); // grim reveal
       }
 
       generateBtn.addEventListener("click", generateAndDisplayScript);
