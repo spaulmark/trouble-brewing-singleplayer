@@ -594,7 +594,7 @@
       // TODO: create a grim reveal button
       // it makes you lose and reveals the grim and enables the new game button
 
-      killModeToggleBtn.addEventListener("click", () => {
+      function toggleKillModeBtn() {
         isKillMode = !isKillMode;
         document.body.classList.toggle("kill-mode-active", isKillMode);
         container.classList.toggle("kill-mode-active", isKillMode);
@@ -603,14 +603,16 @@
           killModeToggleBtn.textContent = "Execute Mode: ON";
           // If it's daytime, show the "No Execution" button
           if (currentPhase === "day") {
-            setupCenterButton("No Execution", transitionToNight);
+            setupCenterButton("No Execution", () => executePlayer(null, -1));
           }
         } else {
           killModeToggleBtn.textContent = "Execute Mode: OFF";
           // Always hide the button when not in kill mode
           setupCenterButton(null, null, false);
         }
-      });
+      }
+
+      killModeToggleBtn.addEventListener("click", () => toggleKillModeBtn());
 
       function updatePhaseDisplay() {
         if (phaseDisplay) {
@@ -676,20 +678,42 @@
         // TODO: if the imp dies, check if game is over wait no ugh... gah... man. asuka
       }
 
+      function countAlivePlayers() {
+        return gameStatePlayers.filter((p) => p.alive).length;
+      }
+
       function executePlayer(playerToken, id) {
         // execution is not allowed during night phase
         if (!canExecutePlayer) {
           return;
         }
-        const player = gameStatePlayers[id];
 
-        killPlayer(playerToken, id);
-
-        // if a healthy saint is executed, their team loses.
-        if (player.role === "Saint" && player.droisoned === false) {
-          endGame(player.evil);
-          return;
+        // no execution
+        if (playerToken === null) {
+          // check for mayor win
+          const aliveCount = countAlivePlayers();
+          const mayor = getRoleIfInPlay("Mayor");
+          if (
+            aliveCount === 3 &&
+            mayor &&
+            mayor.alive &&
+            mayor.droisoned === false
+          ) {
+            // if mayor is alive in F3 and NOT droisoned, good wins
+            endGame(true);
+            return;
+          }
+        } else {
+          // execute someone
+          const player = gameStatePlayers[id];
+          killPlayer(playerToken, id);
+          // if a healthy saint is executed, their team loses.
+          if (player.role === "Saint" && player.droisoned === false) {
+            endGame(player.evil);
+            return;
+          }
         }
+        toggleKillModeBtn(); // TODO: this will break when we implement virgin
         transitionToNight();
       }
 
