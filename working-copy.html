@@ -241,6 +241,7 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+        user-select: none;
 
         font-size: 7em;
         font-weight: bold;
@@ -287,7 +288,7 @@
         align-items: center;
         text-align: center;
 
-        border: 3px solid white;
+        border: 3px solid yellow;
         border-radius: 8px;
         background-color: var(--card-bg);
         font-size: 0.9em;
@@ -667,6 +668,14 @@
         }, nightPhaseMS);
       }
 
+      function killPlayer(playerToken, id) {
+        const player = gameStatePlayers[id];
+        player.alive = false;
+        playerToken.classList.add("dead");
+
+        // TODO: if the imp dies, check if game is over wait no ugh... gah... man. asuka
+      }
+
       function executePlayer(playerToken, id) {
         // execution is not allowed during night phase
         if (!canExecutePlayer) {
@@ -674,8 +683,7 @@
         }
         const player = gameStatePlayers[id];
 
-        player.alive = false;
-        playerToken.classList.add("dead");
+        killPlayer(playerToken, id);
 
         // if a healthy saint is executed, their team loses.
         if (player.role === "Saint" && player.droisoned === false) {
@@ -685,12 +693,27 @@
         transitionToNight();
       }
 
+      function getRoleIfInPlay(role) {
+        for (player of gameStatePlayers) {
+          if (player.role === role) {
+            return player;
+          }
+        }
+        return null;
+      }
+
       function night1() {
         // poisoner
         // washerwoman
         // librarian
         // investigator
         // chef
+        let chef = getRoleIfInPlay("Chef");
+        if (chef) {
+          // check how many evil players are sitting next to each other in the circle
+          // the recluse might register as evil. the spy might register as good.
+        }
+        // TODO: its cheffing time
         // empath
         // fortune teller
       }
@@ -783,13 +806,16 @@
         if (selectedMinions.length === 3) {
           // if there is spy, you get another free bluff! yay
           if (spyInPlay) {
-            demonBluffs.push(unusedBluffs.pop());
+            demonBluffs.push(unusedBluffs[0]);
           } else {
             // otherwise you just have to randomly claim something.
-            demonBluffs.push(
-              getRandomItems([...characters.townsfolk, characters.outsiders], 1)
-                .selected[0]
-            );
+            const roleToClaim = getRandomItems(
+              [...characters.townsfolk, ...characters.outsiders].filter(
+                (role) => role.name !== "Drunk"
+              ),
+              1
+            ).selected[0];
+            demonBluffs.push(roleToClaim);
           }
         }
         const ingamePlayers = shuffleArray(playerNames.slice(0, playerCount));
@@ -824,7 +850,6 @@
             };
             gameover_text = `I saw myself as ${designatedDrunkBluff.name}`;
           }
-
           const player = {
             seat: i,
             name: ingamePlayers[i],
