@@ -680,10 +680,6 @@
         // otherwise you pass to a random minion
       }
 
-      function countAlivePlayers() {
-        return gameStatePlayers.filter((p) => p.alive).length;
-      }
-
       function executePlayer(playerToken, id) {
         // execution is not allowed during night phase
         if (!canExecutePlayer) {
@@ -693,7 +689,7 @@
         // no execution
         if (playerToken === null) {
           // check for mayor win
-          const aliveCount = countAlivePlayers();
+          const aliveCount = gameStatePlayers.filter((p) => p.alive).length;
           const mayor = getRoleIfInPlay("Mayor");
           if (
             aliveCount === 3 &&
@@ -728,6 +724,16 @@
           if (player.role === "Saint" && player.droisoned === false) {
             endGame(player.evil);
             return;
+          }
+
+          // if 2 or less players are alive, and a demon is alive, evil wins.
+          const alivePlayers = gameStatePlayers.filter((p) => p.alive);
+          if (alivePlayers.length <= 2) {
+            const demon = alivePlayers.find((p) => p.type === "demon");
+            if (demon) {
+              endGame(false);
+              return;
+            }
           }
         }
         toggleKillModeBtn(); // TODO: this will break when we implement virgin
@@ -768,6 +774,16 @@
         // undertaker
         // empath
         // ft
+
+        // if 2 or less players are alive, and a demon is alive, evil wins.
+        const alivePlayers = gameStatePlayers.filter((p) => p.alive);
+        if (alivePlayers.length <= 2) {
+          const demon = alivePlayers.find((p) => p.type === "demon");
+          if (demon) {
+            endGame(false);
+            return;
+          }
+        }
       }
 
       function generateAndDisplayScript() {
