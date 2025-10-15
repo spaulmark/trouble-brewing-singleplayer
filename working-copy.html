@@ -656,9 +656,7 @@
         canExecutePlayer = false; // No more executions
         phaseNumber++;
         updatePhaseDisplay();
-
-        othernights(); // TODO: this
-
+        othernights();
         setTimeout(() => {
           currentPhase = "day";
           canExecutePlayer = true;
@@ -674,8 +672,12 @@
         const player = gameStatePlayers[id];
         player.alive = false;
         playerToken.classList.add("dead");
+      }
 
-        // TODO: if the imp dies, check if game is over wait no ugh... gah... man. asuka
+      function starpass() {
+        // TODO: this
+        // if a scarlet woman is alive you pass to the scarlet woman
+        // otherwise you pass to a random minion
       }
 
       function countAlivePlayers() {
@@ -704,9 +706,24 @@
             return;
           }
         } else {
-          // execute someone
+          // yes execution
           const player = gameStatePlayers[id];
           killPlayer(playerToken, id);
+          const scarletWoman = getRoleIfInPlay("Scarlet Woman");
+          if (player.role === "Imp") {
+            // if the imp is executed, and the scarlet woman either does not exist, is dead, or is poisoned (lol)
+            // then the evil team loses.
+            const evilLoses =
+              !scarletWoman || !scarletWoman.alive || scarletWoman.droisoned;
+            if (evilLoses) {
+              endGame(true);
+              return;
+            }
+            // otherwise the scarlet woman becomes the imp
+            scarletWoman.role = "Imp";
+            scarletWoman.type = "demon";
+          }
+
           // if a healthy saint is executed, their team loses.
           if (player.role === "Saint" && player.droisoned === false) {
             endGame(player.evil);
