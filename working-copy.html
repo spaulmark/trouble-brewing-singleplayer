@@ -549,7 +549,21 @@
         "Q",
       ];
 
-      // dom elements
+      // --- Ugly Number Data ---
+
+      const chefNumbers = {
+        7: [27112, 12350, 538, 0, 0, 0],
+        8: [26668, 12319, 1013, 0, 0, 0],
+        9: [26484, 12371, 1145, 0, 0, 0],
+        10: [18741, 17440, 3617, 202, 0, 0],
+        11: [18805, 16849, 4081, 265, 0, 0],
+        12: [18988, 16524, 4198, 290, 0, 0],
+        13: [12975, 18240, 7589, 1154, 42, 0],
+        14: [13158, 18012, 7590, 1185, 55, 0],
+        15: [13333, 17744, 7654, 1216, 53, 0],
+      };
+
+      // --- Dom Elements ---
       const playerCountSelect = document.getElementById("player-count");
       const generateBtn = document.getElementById("generate-btn");
       const circleContainer = document.getElementById("circle-container");
@@ -567,24 +581,24 @@
       let phaseNumber = 1;
       let gameStatePlayers = [
         /*{
-              seat: 0,
-              name: "ABCDEFG"
-              character:  "drunk",
-              type: "outsider"
-              evil: true/false     // only 2 alignments in botc
-              alive: true/false
-              appears_as: {role: "mayor", type: "townsfolk"}
-              my_info_text: "A/B yes, C/D no",
-              gameover_text: "i saw myself as mayor",
-              droisoned: true/false
-            }*/
+                    seat: 0,
+                    name: "ABCDEFG"
+                    character:  "drunk",
+                    type: "outsider"
+                    evil: true/false     // only 2 alignments in botc
+                    alive: true/false
+                    appears_as: {role: "mayor", type: "townsfolk"}
+                    my_info_text: "A/B yes, C/D no",
+                    gameover_text: "i saw myself as mayor",
+                    droisoned: true/false
+                  }*/
       ];
       /*
-            role template:
-            fortune teller: {
-            default_choicebubble: "Who should I pick tonight?"
-            }
-            */
+                  role template:
+                  fortune teller: {
+                  default_choicebubble: "Who should I pick tonight?"
+                  }
+                  */
 
       // ui state variables
       let currentCenterAction = null;
@@ -762,6 +776,20 @@
         return Math.random() < 0.5 ? true : false;
       }
 
+      function weightedRandom(distribution, exclude = []) {
+        const filtered = distribution.map((w, i) =>
+          exclude.includes(i) ? 0 : w
+        );
+        const total = filtered.reduce((a, b) => a + b, 0);
+        if (total === 0)
+          throw new Error("No valid options left after exclusions.");
+        let r = Math.random() * total;
+        for (let i = 0; i < filtered.length; i++) {
+          r -= filtered[i];
+          if (r < 0) return i;
+        }
+      }
+
       function countEvilPairs(players, recluseEvil, spyEvil) {
         let evilPairs = 0;
         const n = players.length;
@@ -799,16 +827,31 @@
           // check how many evil players are sitting next to each other in the circle
           const recluseEvil = flipCoin();
           const spyEvil = flipCoin();
-          const correctEvilPairs = countEvilPairs(
+          let correctEvilPairs = countEvilPairs(
             gameStatePlayers,
             recluseEvil,
             spyEvil
           );
-          // TODO: a droisoned chef gets wrong info
+          // although it is technically possible, i will never give a chef 5.
+          if (correctEvilPairs === 5) correctEvilPairs = 4;
+          let returnedEvilPairs = correctEvilPairs;
 
-          // TODO: an evil chef may or may not tell the truth
-
-          chef.info_text = `${correctEvilPairs}`;
+          // a droisoned chef gets false info
+          if (chef.droisoned) {
+            returnedEvilPairs = weightedRandom(
+              chefNumbers[gameStatePlayers.length],
+              [correctEvilPairs]
+            );
+          } else if (chef.evil) {
+            // an evil chef just says something random
+            returnedEvilPairs = weightedRandom(
+              chefNumbers[gameStatePlayers.length]
+            );
+          } else {
+            // a good chef learns the truth
+            chef.gameover_text = `${returnedEvilPairs}`;
+          }
+          chef.info_text = `${returnedEvilPairs}`;
         }
         // empath
         // fortune teller
@@ -1011,10 +1054,12 @@
           }
 
           tokenEl.innerHTML = `
-        <div class="speech-bubble${speech ? " visible" : ""}">${speech}</div>
-        <strong>${playerName}</strong>
-        <span>${role.role}</span>
-      `;
+              <div class="speech-bubble${
+                speech ? " visible" : ""
+              }">${speech}</div>
+              <strong>${playerName}</strong>
+              <span>${role.role}</span>
+            `;
           // Add a click listener to toggle the 'dead' class on the token.
           // This allows you to mark players as executed.
           tokenEl.addEventListener("click", () => {
@@ -1047,8 +1092,19 @@
         displayPlayerCircle(true); // grim reveal
       }
 
-      generateBtn.addEventListener("click", generateAndDisplayScript);
+      // ----- GOOD for some nice RNG  ----
+      // function main() {
+      //   for (let i = 0; i < 40000; i++) {
+      //     generateAndDisplayScript();
+      //     x[
+      //       countEvilPairs(gameStatePlayers, flipCoin(), flipCoin())
+      //     ]++;
+      //   }
+      //   console.log(x);
+      // }
+
       document.addEventListener("DOMContentLoaded", generateAndDisplayScript);
+      generateBtn.addEventListener("click", generateAndDisplayScript);
       centerActionButton.addEventListener("click", () => {
         if (typeof currentCenterAction === "function") {
           currentCenterAction(); // Execute the stored function
