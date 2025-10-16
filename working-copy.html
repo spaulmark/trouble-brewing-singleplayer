@@ -749,18 +749,67 @@
         return null;
       }
 
+      function getAppearAsRoleIfInPlay(role) {
+        for (player of gameStatePlayers) {
+          if (player.appears_as.role === role) {
+            return player;
+          }
+        }
+        return null;
+      }
+
+      function flipCoin() {
+        return Math.random() < 0.5 ? true : false;
+      }
+
+      function countEvilPairs(players, recluseEvil, spyEvil) {
+        let evilPairs = 0;
+        const n = players.length;
+
+        for (let i = 0; i < n; i++) {
+          const current = players[i];
+          const next = players[(i + 1) % n]; // wraps around to 0 at the end
+          const currentEvil =
+            current.role === "Recluse"
+              ? recluseEvil
+              : current.role === "Spy"
+              ? spyEvil
+              : current.evil;
+          const nextEvil =
+            next.role === "Recluse"
+              ? recluseEvil
+              : next.role === "Spy"
+              ? spyEvil
+              : next.evil;
+
+          if (currentEvil && nextEvil) evilPairs++;
+        }
+
+        return evilPairs;
+      }
+
       function night1() {
         // poisoner
         // washerwoman
         // librarian
         // investigator
         // chef
-        let chef = getRoleIfInPlay("Chef");
+        let chef = getAppearAsRoleIfInPlay("Chef");
         if (chef) {
           // check how many evil players are sitting next to each other in the circle
-          // the recluse might register as evil. the spy might register as good.
+          const recluseEvil = flipCoin();
+          const spyEvil = flipCoin();
+          const correctEvilPairs = countEvilPairs(
+            gameStatePlayers,
+            recluseEvil,
+            spyEvil
+          );
+          // TODO: a droisoned chef gets wrong info
+
+          // TODO: an evil chef may or may not tell the truth
+
+          chef.info_text = `${correctEvilPairs}`;
         }
-        // TODO: its cheffing time
         // empath
         // fortune teller
       }
@@ -958,7 +1007,7 @@
           if (grim_reveal) {
             speech = player.gameover_text || "";
           } else {
-            // TODO: what will appear in the speech bubble?
+            speech = player.info_text || "";
           }
 
           tokenEl.innerHTML = `
