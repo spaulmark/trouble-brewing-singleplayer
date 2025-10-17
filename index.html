@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Clocktower Simulator</title>
+    <title>Single Player Trouble Brewing</title>
     <style>
       :root {
         --bg-color: #1a1a1a;
@@ -829,8 +829,6 @@
         // TODO: poisoner
         // TODO: washerwoman
         // librarian
-
-        // TODO: it's librarian time
         let librarian = getAppearAsRoleIfInPlay("Librarian");
         if (librarian) {
           const spy = getRoleIfInPlay("Spy");
@@ -841,45 +839,45 @@
             gameStatePlayers.length === 13;
           const healthyLibrarian = !librarian.droisoned && !librarian.evil;
           const evilLibrarian = librarian.evil;
-          // pick a a random outsider, or the spy. or if there are no outsiders say there are none
-          // if you pick the spy, the priority is to confirm an evil outsider bluff
-          // otherwise it's "you saw a drunk" between the spy and a random person (not yourself)
-          // if there is only a spy in play you could still learn no outsiders
-
-          // 1/5 chance for a healthy to ping off the spy
+          // magic 1/5 chance for a healthy to ping off the spy
           // evil/drunk librarian has no need for a spy to misregister.
           const pingsOffSpy = healthyLibrarian && spy ? percentTrue(20) : false;
 
-          // or they will ping off of the spy and confirm an evil player bluffing outsider
-          // or they will ping off the spy and see random drunk pings
+          // find all evil ppl bluffing outsider
+          const evilOutsiders = gameStatePlayers.filter(
+            (player) => player.evil && player.appears_as.type === "outsider"
+          );
+          let correct;
+          let wrong;
+          let text;
+          let seenRole;
+
           if (pingsOffSpy) {
             // TODO: spy misinfo
-            // either confirm an evil player,
-            // see random drunk pings
-            // see garbage info
+            const mustConfirmSpy = spy.appears_as.type === "outsider";
+            if (evilOutsiders.length === 0) {
+              // TODO: see random drunk pings
+              // TODO: see garbage info
+            } else {
+              // if spy is bluffing outsider confirm the spy
+              if (mustConfirmSpy) {
+                // confirm the spy
+                console.log("it happened");
+                correct = spy;
+                seenRole = spy.appears_as.role;
+              } else {
+                // TODO: 3/4 confirm evil player. 1/4 drunk ping
+              }
+            }
           } else if (healthyLibrarian) {
-            let text;
             if (outsiders.length === 0) {
               // if there's no outsiders you cannot learn any
               text = "0";
             } else {
               // learn a real outsider
-              const correct = getRandomItems(outsiders, 1).selected[0];
-              const wrong = getRandomItems(
-                gameStatePlayers.filter(
-                  (player) =>
-                    player.seat !== correct.seat &&
-                    player.seat !== librarian.seat
-                ),
-                1
-              ).selected[0];
-              const order = flipCoin();
-              text = `${order ? correct.name : wrong.name}/${
-                order ? wrong.name : correct.name
-              } ${correct.role}`;
+              correct = getRandomItems(outsiders, 1).selected[0];
+              seenRole = correct.role;
             }
-            librarian.gameover_text = text;
-            librarian.info_text = text;
           } else if (evilLibrarian) {
             // TODO: be evil
             // confirm your evil ally
@@ -893,6 +891,21 @@
             // see 2 random ppl
             // incorrectly learn 0 outsiders  (if 7/10/13 game)
           }
+          if (correct) {
+            wrong = getRandomItems(
+              gameStatePlayers.filter(
+                (player) =>
+                  player.seat !== correct.seat && player.seat !== librarian.seat
+              ),
+              1
+            ).selected[0];
+            const order = flipCoin();
+            text = `${order ? correct.name : wrong.name}/${
+              order ? wrong.name : correct.name
+            } ${seenRole}`;
+          }
+          librarian.gameover_text = text;
+          librarian.info_text = text;
         }
 
         // TODO: investigator
