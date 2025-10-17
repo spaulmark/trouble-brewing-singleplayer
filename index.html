@@ -853,20 +853,38 @@
           let seenRole;
 
           if (pingsOffSpy) {
-            // TODO: spy misinfo
+            // spy misinfo
             const mustConfirmSpy = spy.appears_as.type === "outsider";
             if (evilOutsiders.length === 0) {
-              // TODO: see random drunk pings
-              // TODO: see garbage info
+              if (percentTrue(75)) {
+                // false drunk ping
+                correct = spy;
+                seenRole = "Drunk";
+              } else {
+                // garbage info
+                correct = spy;
+                seenRole = getRandomItems(["Saint", "Recluse", "Butler"], 1)
+                  .selected[0];
+              }
             } else {
               // if spy is bluffing outsider confirm the spy
               if (mustConfirmSpy) {
                 // confirm the spy
-                console.log("it happened");
                 correct = spy;
                 seenRole = spy.appears_as.role;
               } else {
-                // TODO: 3/4 confirm evil player. 1/4 drunk ping
+                // 3/4 confirm evil player. 1/4 drunk ping
+                const confirmEvil = percentTrue(75);
+                if (confirmEvil) {
+                  // confirm an evil player
+                  correct = getRandomItems(evilOutsiders, 1).selected[0];
+                  wrong = spy;
+                  seenRole = correct.appears_as.role;
+                } else {
+                  // random drunk ping
+                  correct = spy;
+                  seenRole = "Drunk";
+                }
               }
             }
           } else if (healthyLibrarian) {
@@ -892,13 +910,16 @@
             // incorrectly learn 0 outsiders  (if 7/10/13 game)
           }
           if (correct) {
-            wrong = getRandomItems(
-              gameStatePlayers.filter(
-                (player) =>
-                  player.seat !== correct.seat && player.seat !== librarian.seat
-              ),
-              1
-            ).selected[0];
+            if (!wrong) {
+              wrong = getRandomItems(
+                gameStatePlayers.filter(
+                  (player) =>
+                    player.seat !== correct.seat &&
+                    player.seat !== librarian.seat
+                ),
+                1
+              ).selected[0];
+            }
             const order = flipCoin();
             text = `${order ? correct.name : wrong.name}/${
               order ? wrong.name : correct.name
