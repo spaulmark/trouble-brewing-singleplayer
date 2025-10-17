@@ -694,6 +694,8 @@
         // otherwise you pass to a random minion
       }
 
+      // TODO: TPK evil wincon, do this after nightkills
+
       function executePlayer(playerToken, id) {
         // execution is not allowed during night phase
         if (!canExecutePlayer) {
@@ -773,7 +775,11 @@
       }
 
       function flipCoin() {
-        return Math.random() < 0.5 ? true : false;
+        return percentTrue(50);
+      }
+
+      function percentTrue(percent) {
+        return Math.random() < percent / 100;
       }
 
       function weightedRandom(distribution, exclude = []) {
@@ -812,15 +818,84 @@
 
           if (currentEvil && nextEvil) evilPairs++;
         }
-
         return evilPairs;
       }
 
+      function getAllOutsiders() {
+        return gameStatePlayers.filter((p) => p.type === "outsider");
+      }
+
       function night1() {
-        // poisoner
-        // washerwoman
+        // TODO: poisoner
+        // TODO: washerwoman
         // librarian
-        // investigator
+
+        // TODO: it's librarian time
+        let librarian = getAppearAsRoleIfInPlay("Librarian");
+        if (librarian) {
+          const spy = getRoleIfInPlay("Spy");
+          const outsiders = getAllOutsiders();
+          const zeroOutsidersPossible =
+            gameStatePlayers.length === 7 ||
+            gameStatePlayers.length === 10 ||
+            gameStatePlayers.length === 13;
+          const healthyLibrarian = !librarian.droisoned && !librarian.evil;
+          const evilLibrarian = librarian.evil;
+          // pick a a random outsider, or the spy. or if there are no outsiders say there are none
+          // if you pick the spy, the priority is to confirm an evil outsider bluff
+          // otherwise it's "you saw a drunk" between the spy and a random person (not yourself)
+          // if there is only a spy in play you could still learn no outsiders
+
+          // 1/5 chance for a healthy to ping off the spy
+          // evil/drunk librarian has no need for a spy to misregister.
+          const pingsOffSpy = healthyLibrarian && spy ? percentTrue(20) : false;
+
+          // or they will ping off of the spy and confirm an evil player bluffing outsider
+          // or they will ping off the spy and see random drunk pings
+          if (pingsOffSpy) {
+            // TODO: spy misinfo
+            // either confirm an evil player,
+            // see random drunk pings
+            // see garbage info
+          } else if (healthyLibrarian) {
+            let text;
+            if (outsiders.length === 0) {
+              // if there's no outsiders you cannot learn any
+              text = "0";
+            } else {
+              // learn a real outsider
+              const correct = getRandomItems(outsiders, 1).selected[0];
+              const wrong = getRandomItems(
+                gameStatePlayers.filter(
+                  (player) =>
+                    player.seat !== correct.seat &&
+                    player.seat !== librarian.seat
+                ),
+                1
+              ).selected[0];
+              const order = flipCoin();
+              text = `${order ? correct.name : wrong.name}||${
+                order ? wrong.name : correct.name
+              } ${correct.role}`;
+            }
+            librarian.gameover_text = text;
+            librarian.info_text = text;
+          } else if (evilLibrarian) {
+            // TODO: be evil
+            // confirm your evil ally
+            // confirm a good player (if spy in play)
+            // maybe claim 0 outsiders (if 7/10/13 game)
+            // claim 2 random pings
+          } else {
+            // TODO: droisoned librarian
+            // confirm an evil player
+            // see 2 random drunk pings
+            // see 2 random ppl
+            // incorrectly learn 0 outsiders  (if 7/10/13 game)
+          }
+        }
+
+        // TODO: investigator
         // chef
         let chef = getAppearAsRoleIfInPlay("Chef");
         if (chef) {
@@ -853,19 +928,18 @@
           }
           chef.info_text = `${returnedEvilPairs}`;
         }
-        // empath
-        // fortune teller
+        // TODO: empath
+        // TODO: fortune teller
       }
 
       function othernights() {
-        // poisoner
-        // monk
-        // scarlet woman...? idk
-        // imp
-        // ravenkeeper
-        // undertaker
-        // empath
-        // ft
+        // TODO: poisoner
+        // TODO: monk
+        // TODO: imp
+        // TODO: ravenkeeper
+        // TODO: undertaker
+        // TODO: empath
+        // TODO: ft
 
         // if 2 or less players are alive, and a demon is alive, evil wins.
         const alivePlayers = gameStatePlayers.filter((p) => p.alive);
@@ -1014,7 +1088,7 @@
           gameStatePlayers.push(player);
         }
 
-        night1(); // TODO: night 1
+        night1();
         phaseNumber = 1;
         updatePhaseDisplay();
         displayPlayerCircle(false);
