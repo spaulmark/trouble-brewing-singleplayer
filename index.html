@@ -690,7 +690,7 @@
 
       function starpass() {
         // TODO: this
-        // if a scarlet woman is alive you pass to the scarlet woman
+        // if a scarlet woman is alive + 5+ alive you pass to the scarlet woman
         // otherwise you pass to a random minion
       }
 
@@ -702,10 +702,10 @@
           return;
         }
 
+        const aliveCount = gameStatePlayers.filter((p) => p.alive).length;
         // no execution
         if (playerToken === null) {
           // check for mayor win
-          const aliveCount = gameStatePlayers.filter((p) => p.alive).length;
           const mayor = getRoleIfInPlay("Mayor");
           if (
             aliveCount === 3 &&
@@ -724,9 +724,14 @@
           const scarletWoman = getRoleIfInPlay("Scarlet Woman");
           if (player.role === "Imp") {
             // if the imp is executed, and the scarlet woman either does not exist, is dead, or is poisoned (lol)
+            // or there is less than 5 players alive
             // then the evil team loses.
+
             const evilLoses =
-              !scarletWoman || !scarletWoman.alive || scarletWoman.droisoned;
+              !scarletWoman ||
+              !scarletWoman.alive ||
+              scarletWoman.droisoned ||
+              aliveCount < 5;
             if (evilLoses) {
               endGame(true);
               return;
@@ -831,10 +836,6 @@
         // librarian
         let librarian = getAppearAsRoleIfInPlay("Librarian");
         if (librarian) {
-          const anyoneButMe = getRandomItems(
-            gameStatePlayers.filter((x) => x.seat !== librarian.seat),
-            1
-          ).selected[0];
           const spy = getRoleIfInPlay("Spy");
           const outsiders = getAllOutsiders();
           const zeroOutsidersPossible =
@@ -846,11 +847,6 @@
           // magic 1/5 chance for a healthy to ping off the spy
           // evil/drunk librarian has no need for a spy to misregister.
           const pingsOffSpy = healthyLibrarian && spy ? percentTrue(20) : false;
-
-          const randomGarbage = getRandomItems(
-            ["Saint", "Recluse", "Butler"],
-            1
-          ).selected[0];
           // find all evil ppl bluffing outsider
           const evilOutsiders = gameStatePlayers.filter(
             (player) => player.evil && player.appears_as.type === "outsider"
@@ -870,15 +866,9 @@
             // spy misinfo
             const mustConfirmSpy = spy.appears_as.type === "outsider";
             if (evilOutsiders.length === 0) {
-              if (percentTrue(75)) {
-                // false drunk ping
-                correct = spy;
-                seenRole = "Drunk";
-              } else {
-                // garbage info
-                correct = spy;
-                seenRole = randomGarbage;
-              }
+              // random drunk ping
+              correct = spy;
+              seenRole = "Drunk";
             } else {
               // if spy is bluffing outsider confirm the spy
               if (mustConfirmSpy) {
@@ -906,6 +896,7 @@
               learnZero = true;
             } else {
               // learn a real outsider
+              learnRealInfo = true;
             }
           } else if (evilLibrarian) {
             const isBaronInPlay = !!getRoleIfInPlay("Baron");
@@ -928,13 +919,8 @@
                   // claim 0 outsiders
                   learnZero = true;
                 } else {
-                  // make up a drunk ping or give random garbage
-                  const randomGarbage = percentTrue(10);
-                  if (randomGarbage) {
-                    learnGarbage = true;
-                  } else {
-                    learnRandomDrunk = true;
-                  }
+                  // make up a drunk ping
+                  learnRandomDrunk = true;
                 }
               }
             } else {
@@ -942,20 +928,14 @@
                 // claim 0 outsiders
                 learnZero = true;
               } else {
-                // make up a drunk ping or give random garbage
-                const randomGarbage = percentTrue(10);
-                if (randomGarbage) {
-                  learnGarbage = true;
-                } else {
-                  learnRandomDrunk = true;
-                }
+                // make up a drunk ping
+                learnRandomDrunk = true;
               }
             }
           } else {
             // TODO: droisoned librarian
             // confirm an evil player
             // see 2 random drunk pings
-            // see 2 random ppl
             // incorrectly learn 0 outsiders  (if 7/10/13 game) AND there is at least one outsider
           }
 
@@ -969,10 +949,11 @@
           } else if (learnRealInfo) {
             correct = getRandomItems(outsiders, 1).selected[0];
             seenRole = correct.role;
-          } else if (learnGarbage) {
-            correct = anyoneButMe;
-            seenRole = randomGarbage;
           } else if (learnRandomDrunk) {
+            const anyoneButMe = getRandomItems(
+              gameStatePlayers.filter((x) => x.seat !== librarian.seat),
+              1
+            ).selected[0];
             correct = anyoneButMe;
             seenRole = "Drunk";
           }
