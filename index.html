@@ -832,7 +832,27 @@
 
       function night1() {
         // TODO: poisoner
+        // picks a random good player and is more likely to pick someone neighboring the demon.
         // TODO: washerwoman
+        let washerwoman = getAppearAsRoleIfInPlay("Washerwoman");
+        if (washerwoman) {
+          // TODO: washerwoman
+          // if spy in play, washerwoman picks a random townsfolk claim (even the drunk!) and confirms them
+          // if player is evil, they use the spy to do it
+          //
+          // if no spy in play,
+          // washerwoman confirms a random good townsfolk
+          //
+          // evil washerwoman:
+          // evil washerwoman confirms an allied evil player
+          // if spy in play they could confirm a random good player
+          // if all evils bluffing outsider and no spy in play do random stuff
+          //
+          // drunk washerwoman confirms an evil player
+          // if all evils bluffing outsider they do random stuff
+          //
+          // but this doesnt really work because bad ww info = you know its all evil outsiders
+        }
         // librarian
         let librarian = getAppearAsRoleIfInPlay("Librarian");
         if (librarian) {
@@ -935,7 +955,7 @@
             }
           }
 
-          // FIXME: now that the action is decided execute the action
+          //  now that the action is decided execute the action
           if (learnZero) {
             text = "0";
           } else if (confirmEvil) {
@@ -975,6 +995,10 @@
         }
 
         // TODO: investigator
+        let invest = getAppearAsRoleIfInPlay("Investigator");
+        if (invest) {
+          //
+        }
         // chef
         let chef = getAppearAsRoleIfInPlay("Chef");
         if (chef) {
@@ -1008,7 +1032,22 @@
           chef.info_text = `${returnedEvilPairs}`;
         }
         // TODO: empath
+        let empath = getAppearAsRoleIfInPlay("Empath");
+        if (empath) {
+          // TODO: night 1 empath.
+          // sober+good empath gets true info, might misregister on recluse/spy
+          // drunk empath gets false info
+          // evil empath frames their allies as good and may or may not claim a 1 or 2 on good ppl
+        }
         // TODO: fortune teller
+        let ft = getAppearAsRoleIfInPlay("Fortune Teller");
+        if (ft) {
+          // TODO: night 1 fortune teller
+          // if the FT is real, set up a red herring
+          // if the FT is drunk/evil, set up a frame map, but always give a no on the demon
+          // unless its late in the game or something then you might give a yes idk
+          // recluses usually give a yes
+        }
       }
 
       function othernights() {

@@ -1,7 +1,6 @@
 Not Done:
 
 Washerwoman
-Librarian
 Investigator
 Empath
 Fortune Teller
@@ -20,6 +19,7 @@ Imp
 
 ------------------ Done:
 
+Librarian
 Chef
 
 Saint
