@@ -898,7 +898,8 @@
               // learn a real outsider
               learnRealInfo = true;
             }
-          } else if (evilLibrarian) {
+          } else {
+            // librarian is droisoned/evil and will give harmful info
             const isBaronInPlay = !!getRoleIfInPlay("Baron");
             // the priority is to confirm your evil ally
             if (evilOutsiders.length > 0) {
@@ -932,11 +933,6 @@
                 learnRandomDrunk = true;
               }
             }
-          } else {
-            // TODO: droisoned librarian
-            // confirm an evil player
-            // see 2 random drunk pings
-            // incorrectly learn 0 outsiders  (if 7/10/13 game) AND there is at least one outsider
           }
 
           // FIXME: now that the action is decided execute the action
