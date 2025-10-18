@@ -831,6 +831,10 @@
         // librarian
         let librarian = getAppearAsRoleIfInPlay("Librarian");
         if (librarian) {
+          const anyoneButMe = getRandomItems(
+            gameStatePlayers.filter((x) => x.seat !== librarian.seat),
+            1
+          ).selected[0];
           const spy = getRoleIfInPlay("Spy");
           const outsiders = getAllOutsiders();
           const zeroOutsidersPossible =
@@ -843,6 +847,10 @@
           // evil/drunk librarian has no need for a spy to misregister.
           const pingsOffSpy = healthyLibrarian && spy ? percentTrue(20) : false;
 
+          const randomGarbage = getRandomItems(
+            ["Saint", "Recluse", "Butler"],
+            1
+          ).selected[0];
           // find all evil ppl bluffing outsider
           const evilOutsiders = gameStatePlayers.filter(
             (player) => player.evil && player.appears_as.type === "outsider"
@@ -851,6 +859,12 @@
           let wrong;
           let text;
           let seenRole;
+
+          let learnZero = false;
+          let confirmEvil = false;
+          let learnRealInfo = false;
+          let learnRandomDrunk = false;
+          let learnGarbage = false;
 
           if (pingsOffSpy) {
             // spy misinfo
@@ -863,8 +877,7 @@
               } else {
                 // garbage info
                 correct = spy;
-                seenRole = getRandomItems(["Saint", "Recluse", "Butler"], 1)
-                  .selected[0];
+                seenRole = randomGarbage;
               }
             } else {
               // if spy is bluffing outsider confirm the spy
@@ -881,7 +894,7 @@
                   wrong = spy;
                   seenRole = correct.appears_as.role;
                 } else {
-                  // random drunk ping
+                  // spy influenced drunk ping
                   correct = spy;
                   seenRole = "Drunk";
                 }
@@ -890,25 +903,80 @@
           } else if (healthyLibrarian) {
             if (outsiders.length === 0) {
               // if there's no outsiders you cannot learn any
-              text = "0";
+              learnZero = true;
             } else {
               // learn a real outsider
-              correct = getRandomItems(outsiders, 1).selected[0];
-              seenRole = correct.role;
             }
           } else if (evilLibrarian) {
-            // TODO: be evil
-            // confirm your evil ally
-            // confirm a good player (if spy in play)
-            // maybe claim 0 outsiders (if 7/10/13 game)
-            // claim 2 random pings
+            const isBaronInPlay = !!getRoleIfInPlay("Baron");
+            // the priority is to confirm your evil ally
+            if (evilOutsiders.length > 0) {
+              confirmEvil = true;
+            } else if (evilHasGrim) {
+              const confirmGoodPlayer = percentTrue(75);
+              // confirm a good player for the cred
+              if (confirmGoodPlayer) {
+                if (outsiders.length === 0) {
+                  // if there's no outsiders you cannot learn any
+                  learnZero = true;
+                } else {
+                  // learn a real outsider
+                  learnRealInfo = true;
+                }
+              } else {
+                if (zeroOutsidersPossible && !isBaronInPlay) {
+                  // claim 0 outsiders
+                  learnZero = true;
+                } else {
+                  // make up a drunk ping or give random garbage
+                  const randomGarbage = percentTrue(10);
+                  if (randomGarbage) {
+                    learnGarbage = true;
+                  } else {
+                    learnRandomDrunk = true;
+                  }
+                }
+              }
+            } else {
+              if (zeroOutsidersPossible && !isBaronInPlay) {
+                // claim 0 outsiders
+                learnZero = true;
+              } else {
+                // make up a drunk ping or give random garbage
+                const randomGarbage = percentTrue(10);
+                if (randomGarbage) {
+                  learnGarbage = true;
+                } else {
+                  learnRandomDrunk = true;
+                }
+              }
+            }
           } else {
             // TODO: droisoned librarian
             // confirm an evil player
             // see 2 random drunk pings
             // see 2 random ppl
-            // incorrectly learn 0 outsiders  (if 7/10/13 game)
+            // incorrectly learn 0 outsiders  (if 7/10/13 game) AND there is at least one outsider
           }
+
+          // FIXME: now that the action is decided execute the action
+          if (learnZero) {
+            text = "0";
+          } else if (confirmEvil) {
+            const evilAlly = getRandomItems(evilOutsiders, 1).selected[0];
+            correct = evilAlly;
+            seenRole = evilAlly.appears_as.role;
+          } else if (learnRealInfo) {
+            correct = getRandomItems(outsiders, 1).selected[0];
+            seenRole = correct.role;
+          } else if (learnGarbage) {
+            correct = anyoneButMe;
+            seenRole = randomGarbage;
+          } else if (learnRandomDrunk) {
+            correct = anyoneButMe;
+            seenRole = "Drunk";
+          }
+
           if (correct) {
             if (!wrong) {
               wrong = getRandomItems(
@@ -925,7 +993,7 @@
               order ? wrong.name : correct.name
             } ${seenRole}`;
           }
-          librarian.gameover_text = text;
+          if (!librarian.evil) librarian.gameover_text = text;
           librarian.info_text = text;
         }
 
