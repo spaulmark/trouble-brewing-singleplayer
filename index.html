@@ -135,7 +135,6 @@
         background-color: var(--bg-color);
         color: var(--text-color);
         margin: 0;
-        padding: 20px;
         line-height: 1.6;
       }
 
@@ -663,6 +662,9 @@
         const notSelected = shuffled.slice(numItems);
         return { selected, notSelected };
       }
+      function getRandomItem(array) {
+        return getRandomItems(array, 1).selected[0];
+      }
 
       function transitionToNight() {
         setupCenterButton(null, null, false); // Hide the button during the night
@@ -832,26 +834,111 @@
 
       function night1() {
         // TODO: poisoner
+        // TODO: if the poisoner ever dies or catches a starpass, their poisoning is removed.
         // picks a random good player and is more likely to pick someone neighboring the demon.
-        // TODO: washerwoman
         let washerwoman = getAppearAsRoleIfInPlay("Washerwoman");
         if (washerwoman) {
           // TODO: washerwoman
-          // if spy in play, washerwoman picks a random townsfolk claim (even the drunk!) and confirms them
-          // if player is evil, they use the spy to do it
-          //
-          // if no spy in play,
-          // washerwoman confirms a random good townsfolk
-          //
-          // evil washerwoman:
-          // evil washerwoman confirms an allied evil player
-          // if spy in play they could confirm a random good player
-          // if all evils bluffing outsider and no spy in play do random stuff
-          //
-          // drunk washerwoman confirms an evil player
-          // if all evils bluffing outsider they do random stuff
-          //
-          // but this doesnt really work because bad ww info = you know its all evil outsiders
+          const spy = getRoleIfInPlay("Spy");
+          const theDrunk = getRoleIfInPlay("Drunk");
+          const evilWasherwoman = washerwoman.evil;
+          const droisoned = washerwoman.droisoned;
+
+          // pre-select an evil bluffing a townsfolk to confirm,
+          // but not an evil washerwoman.
+          // the drunk counts as an "evil player" for these purposes
+          // there may be no one that meets this criteria.
+          const evilsBluffingTownsfolk = gameStatePlayers.filter(
+            (player) =>
+              getAppearAsRoleIfInPlay(player.evil || player.role === "Drunk") &&
+              player.appears_as.type === "townsfolk" &&
+              player.appears_as.type !== "Washerwoman"
+          );
+          let evilToConfirm =
+            evilsBluffingTownsfolk.length > 0
+              ? getRandomItems(evilsBluffingTownsfolk, 1).selected
+              : null;
+
+          let correct;
+          let wrong;
+          let text;
+          let seenRole;
+
+          let confirmEvil = false;
+          let learnRealInfo = false;
+          let learnGarbage = false;
+
+          if (evilWasherwoman) {
+            // if no evil to confirm and no spy do random stuff
+            if (!evilToConfirm && !spy) learnGarbage = true;
+            // evil washerwoman confirms an allied evil player
+            if (evilToConfirm && !spy) confirmEvil = true;
+            // if spy in play but no evil to confirm, confirm a good player even tho ur evil lol ;)
+            if (!evilToConfirm && spy) learnRealInfo = true;
+            // if spy in play and evil to confirm u can confirm anyone good or evil
+            if (evilToConfirm && spy) {
+              if (percentTrue(33)) learnRealInfo = true;
+              else confirmEvil = true;
+            }
+          } else if (droisoned) {
+            // if no one is available to falsely confirm learn garbage
+            if (!evilToConfirm) learnGarbage = true;
+            // droisoned washerwoman falsely confirms sonmeone, or does random stuff (small chance)
+            else if (percentTrue(10)) learnGarbage = true;
+            else confirmEvil = true;
+          } else if (spy) {
+            // if spy in play, washerwoman picks a random townsfolk claim (even the drunk!) and confirms them
+            const townsfolkClaims = gameStatePlayers.filter(
+              (player) =>
+                player.appears_as.type === "townsfolk" &&
+                player.seat !== washerwoman.seat
+            );
+            const townsfolkToConfirm = getRandomItem(townsfolkClaims);
+            seenRole = townsfolkToConfirm.appears_as.role;
+            correct = townsfolkToConfirm;
+            // if washerwoman would learn false info, the spy is the wrong side of the ping
+            // unless they are confirming the spy's bluff in which case someone random is the wrong side
+            const needsSpyWrong =
+              townsfolkToConfirm.role.type !== "townsfolk" &&
+              townsfolkToConfirm.role !== "Spy";
+            if (needsSpyWrong) wrong = spy;
+          } else {
+            // if no spy in play, healthy washerwoman confirms a random good townsfolk
+            learnRealInfo = true;
+          }
+
+          if (learnRealInfo) {
+            const realTownsfolk = gameStatePlayers.filter(
+              (player) =>
+                player.type === "townsfolk" && player.seat !== washerwoman.seat
+            ); // TODO: empty?
+            const townsfolkToConfirm = getRandomItem(realTownsfolk);
+            correct = townsfolkToConfirm;
+            seenRole = townsfolkToConfirm.role; // TODO: this is erroring?
+          } else if (confirmEvil) {
+            correct = evilToConfirm;
+            seenRole = evilToConfirm.appears_as;
+          } else if (learnGarbage) {
+            // TODO:
+            throw "learn garbage";
+          }
+
+          if (!wrong) {
+            wrong = getRandomItem(
+              gameStatePlayers.filter(
+                (player) =>
+                  player.seat !== correct.seat &&
+                  player.seat !== washerwoman.seat
+              )
+            );
+          }
+
+          const order = flipCoin();
+          text = `${order ? correct.name : wrong.name}/${
+            order ? wrong.name : correct.name
+          } ${seenRole}`;
+          washerwoman.info_text = text;
+          if (!washerwoman.evil) washerwoman.gameover_text = text;
         }
         // librarian
         let librarian = getAppearAsRoleIfInPlay("Librarian");
@@ -1052,6 +1139,7 @@
 
       function othernights() {
         // TODO: poisoner
+        // whoever was previously poisoned becomes healthy, but not The Drunk.
         // TODO: monk
         // TODO: imp
         // TODO: ravenkeeper
