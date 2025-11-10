@@ -1,7 +1,5 @@
 Not Done:
 
-Washerwoman
-
 Investigator
 
 Empath
@@ -29,6 +27,8 @@ Spy
 Imp
 
 ------------------ Done:
+
+Washerwoman
 
 Librarian
 
