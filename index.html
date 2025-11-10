@@ -580,24 +580,24 @@
       let phaseNumber = 1;
       let gameStatePlayers = [
         /*{
-                    seat: 0,
-                    name: "ABCDEFG"
-                    character:  "drunk",
-                    type: "outsider"
-                    evil: true/false     // only 2 alignments in botc
-                    alive: true/false
-                    appears_as: {role: "mayor", type: "townsfolk"}
-                    my_info_text: "A/B yes, C/D no",
-                    gameover_text: "i saw myself as mayor",
-                    droisoned: true/false
-                  }*/
+                          seat: 0,
+                          name: "ABCDEFG"
+                          character:  "drunk",
+                          type: "outsider"
+                          evil: true/false     // only 2 alignments in botc
+                          alive: true/false
+                          appears_as: {role: "mayor", type: "townsfolk"}
+                          my_info_text: "A/B yes, C/D no",
+                          gameover_text: "i saw myself as mayor",
+                          droisoned: true/false
+                        }*/
       ];
       /*
-                  role template:
-                  fortune teller: {
-                  default_choicebubble: "Who should I pick tonight?"
-                  }
-                  */
+                        role template:
+                        fortune teller: {
+                        default_choicebubble: "Who should I pick tonight?"
+                        }
+                        */
 
       // ui state variables
       let currentCenterAction = null;
@@ -772,6 +772,7 @@
         return null;
       }
 
+      // TODO: this bricks for doubleclaims. only the first guy gets info on n1
       function getAppearAsRoleIfInPlay(role) {
         for (player of gameStatePlayers) {
           if (player.appears_as.role === role) {
@@ -838,9 +839,9 @@
         // picks a random good player and is more likely to pick someone neighboring the demon.
         let washerwoman = getAppearAsRoleIfInPlay("Washerwoman");
         if (washerwoman) {
-          // TODO: washerwoman
           const spy = getRoleIfInPlay("Spy");
-          const theDrunk = getRoleIfInPlay("Drunk");
+          let theDrunk = getRoleIfInPlay("Drunk");
+          if (theDrunk && theDrunk.seat === washerwoman.seat) theDrunk = null;
           const evilWasherwoman = washerwoman.evil;
           const droisoned = washerwoman.droisoned;
 
@@ -850,13 +851,21 @@
           // there may be no one that meets this criteria.
           const evilsBluffingTownsfolk = gameStatePlayers.filter(
             (player) =>
-              getAppearAsRoleIfInPlay(player.evil || player.role === "Drunk") &&
+              player.evil &&
               player.appears_as.type === "townsfolk" &&
               player.appears_as.type !== "Washerwoman"
           );
+          const evilsAndDrunkBluffingTownsfolk = theDrunk
+            ? [...evilsBluffingTownsfolk, theDrunk]
+            : evilsBluffingTownsfolk;
+
           let evilToConfirm =
             evilsBluffingTownsfolk.length > 0
-              ? getRandomItems(evilsBluffingTownsfolk, 1).selected
+              ? getRandomItem(evilsBluffingTownsfolk)
+              : null;
+          let evilOrDrunkToConfirm =
+            evilsAndDrunkBluffingTownsfolk.length > 0
+              ? getRandomItem(evilsAndDrunkBluffingTownsfolk)
               : null;
 
           let correct;
@@ -865,6 +874,7 @@
           let seenRole;
 
           let confirmEvil = false;
+          let confirmEvilOrDrunk = false;
           let learnRealInfo = false;
           let learnGarbage = false;
 
@@ -878,14 +888,14 @@
             // if spy in play and evil to confirm u can confirm anyone good or evil
             if (evilToConfirm && spy) {
               if (percentTrue(33)) learnRealInfo = true;
-              else confirmEvil = true;
+              else confirmEvilOrDrunk = true;
             }
           } else if (droisoned) {
             // if no one is available to falsely confirm learn garbage
             if (!evilToConfirm) learnGarbage = true;
             // droisoned washerwoman falsely confirms sonmeone, or does random stuff (small chance)
             else if (percentTrue(10)) learnGarbage = true;
-            else confirmEvil = true;
+            else confirmEvilOrDrunk = true;
           } else if (spy) {
             // if spy in play, washerwoman picks a random townsfolk claim (even the drunk!) and confirms them
             const townsfolkClaims = gameStatePlayers.filter(
@@ -906,21 +916,28 @@
             // if no spy in play, healthy washerwoman confirms a random good townsfolk
             learnRealInfo = true;
           }
-
           if (learnRealInfo) {
             const realTownsfolk = gameStatePlayers.filter(
               (player) =>
                 player.type === "townsfolk" && player.seat !== washerwoman.seat
-            ); // TODO: empty?
+            );
             const townsfolkToConfirm = getRandomItem(realTownsfolk);
             correct = townsfolkToConfirm;
-            seenRole = townsfolkToConfirm.role; // TODO: this is erroring?
+            seenRole = townsfolkToConfirm.role;
           } else if (confirmEvil) {
             correct = evilToConfirm;
-            seenRole = evilToConfirm.appears_as;
+            seenRole = evilToConfirm.appears_as.role;
+          } else if (confirmEvilOrDrunk) {
+            correct = evilOrDrunkToConfirm;
+            seenRole = evilOrDrunkToConfirm.appears_as.role;
           } else if (learnGarbage) {
-            // TODO:
-            throw "learn garbage";
+            // pick a random player (not yourself) and see a random townsfolk (not washerwoman).
+            correct = getRandomItem(
+              gameStatePlayers.filter(
+                (player) => player.seat !== washerwoman.seat
+              )
+            );
+            seenRole = getRandomItem(characters.townsfolk.slice(1)).name;
           }
 
           if (!wrong) {
@@ -962,6 +979,7 @@
           let wrong;
           let text;
           let seenRole;
+          // TODO: If the only outsider in the game is the drunk librarian do they see themselves?
 
           let learnZero = false;
           let confirmEvil = false;
@@ -1334,12 +1352,12 @@
           }
 
           tokenEl.innerHTML = `
-              <div class="speech-bubble${
-                speech ? " visible" : ""
-              }">${speech}</div>
-              <strong>${playerName}</strong>
-              <span>${role.role}</span>
-            `;
+                    <div class="speech-bubble${
+                      speech ? " visible" : ""
+                    }">${speech}</div>
+                    <strong>${playerName}</strong>
+                    <span>${role.role}</span>
+                  `;
           // Add a click listener to toggle the 'dead' class on the token.
           // This allows you to mark players as executed.
           tokenEl.addEventListener("click", () => {
