@@ -22,8 +22,6 @@ Mayor -- still needs the someone else might die property
 
 Poisoner
 
-Spy
-
 Imp
 
 ------------------ Done:
@@ -43,5 +41,7 @@ Drunk
 Recluse
 
 Scarlet Woman
+
+Spy
 
 Baron
