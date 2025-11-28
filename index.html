@@ -580,17 +580,17 @@
       let phaseNumber = 1;
       let gameStatePlayers = [
         /*{
-                          seat: 0,
-                          name: "ABCDEFG"
-                          character:  "drunk",
-                          type: "outsider"
-                          evil: true/false     // only 2 alignments in botc
-                          alive: true/false
-                          appears_as: {role: "mayor", type: "townsfolk"}
-                          my_info_text: "A/B yes, C/D no",
-                          gameover_text: "i saw myself as mayor",
-                          droisoned: true/false
-                        }*/
+        seat: 0,
+        name: "ABCDEFG"
+        character:  "drunk",
+        type: "outsider"
+        evil: true/false     // only 2 alignments in botc
+        alive: true/false
+        appears_as: {role: "mayor", type: "townsfolk"}
+        my_info_text: "A/B yes, C/D no",
+        gameover_text: "i saw myself as mayor",
+        droisoned: true/false
+      }*/
       ];
       /*
                         role template:
@@ -1099,7 +1099,7 @@
           librarian.info_text = text;
         }
 
-        // TODO: investigator
+        // investigator
         let invest = getAppearAsRoleIfInPlay("Investigator");
         if (invest) {
           const healthyInvest = !invest.droisoned && !invest.evil;
@@ -1132,36 +1132,42 @@
 
           // evil investigator
           if (evilInvest) {
-            // TODO: its a big mess lol
+            const minionsToBus = gameStatePlayers.filter(
+              (p) =>
+                p.type === "minion" &&
+                p.role !== "Scarlet Woman" &&
+                p.seat !== invest.seat
+            );
+            const existsMinionToBus =
+              invest.type === "demon" || minionsToBus.length > 0;
+            if (percentTrue(15) && existsMinionToBus) learnRealInfo = true;
+            else learnGoodPlayers = true;
           }
-
-          // if spy in play, they can intentionally pick the recluse sometimes to say oh i have bad info
-          // if an ally is bluffing recluse they can intentionally ping off the fake recluse
-
-          // if no spy in play and no allied recluse bluff:
-          // they could give real info, probably better for a demon or scarlet woman to do that
-          // scarlet woman can't give real info in a 1 minion game
-
-          // they could ugh idk
-
           const randomMinionArray = ["Poisoner", "Spy"];
           const minionCount = playerCounts[gameStatePlayers.length].minions;
           // if 1 minion in play: learn a random minion
           if (minionCount === 1) randomMinionArray.push("Scarlet Woman");
           isBaronPossible && randomMinionArray.push("Baron");
-
-          // TODO: a sober ping should have one good person in it...
-          // TODO: a true baron ping should not have a saint/librarian as wrong
-
+          const goodPpl = gameStatePlayers.filter(
+            (p) => !p.evil && p.seat !== invest.seat
+          );
           if (learnRealInfo) {
             // if 1 minion in play: learn that minion
             if (minionCount === 1) {
-              // TODO: this
+              const minion = gameStatePlayers.filter(
+                (p) => p.type === "minion"
+              )[0];
+              correct = minion;
+              seenRole = minion.role;
             } else {
-              // if 2+ minions in play: learn one that isnt the scarlet woman
+              // if 2+ minions in play: learn one that isnt the scarlet woman (and not yourself lol)
               const minions = gameStatePlayers.filter(
-                (p) => p.type === "minion" && p.role !== "Scarlet Woman"
+                (p) =>
+                  p.type === "minion" &&
+                  p.role !== "Scarlet Woman" &&
+                  p.seat !== invest.seat
               );
+              if (minions.length === 0) throw "NO MINION ERROR";
               correct = getRandomItem(minions);
               seenRole = correct.role;
             }
@@ -1170,23 +1176,24 @@
             correct = recluse;
             seenRole = getRandomItem(randomMinionArray);
           } else if (learnGoodPlayers) {
-            const goodPpl = gameStatePlayers.filter(
-              (p) => !p.evil && p.seat !== invest.seat
-            );
-            const picks = getRandomItems(goodppl, 2).selected;
+            const picks = getRandomItems(goodPpl, 2).selected;
             correct = picks[0];
             wrong = picks[1];
             seenRole = getRandomItem(randomMinionArray);
           }
 
+          // wrong is always a good player.
           if (!wrong) {
-            wrong = getRandomItems(
-              gameStatePlayers.filter(
-                (player) =>
-                  player.seat !== correct.seat && player.seat !== invest.seat
-              ),
-              1
-            ).selected[0];
+            const validWrongChoices = goodPpl.filter(
+              (p) => p.seat !== correct.seat
+            );
+            const finalWrongChoices =
+              seenRole === "Baron"
+                ? validWrongChoices.filter(
+                    (p) => p.role !== "Saint" && p.role !== "Butler"
+                  )
+                : validWrongChoices;
+            wrong = getRandomItem(finalWrongChoices);
           }
           const order = flipCoin();
           text = `${order ? correct.name : wrong.name}/${

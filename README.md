@@ -1,7 +1,5 @@
 Not Done:
 
-Investigator
-
 Empath
 
 Fortune Teller
@@ -29,6 +27,8 @@ Imp
 Washerwoman
 
 Librarian
+
+Investigator
 
 Chef
 
