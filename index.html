@@ -549,7 +549,6 @@
       ];
 
       // --- Ugly Number Data ---
-
       const chefNumbers = {
         7: [27112, 12350, 538, 0, 0, 0],
         8: [26668, 12319, 1013, 0, 0, 0],
@@ -593,11 +592,11 @@
       }*/
       ];
       /*
-                        role template:
-                        fortune teller: {
-                        default_choicebubble: "Who should I pick tonight?"
-                        }
-                        */
+      role template:
+      fortune teller: {
+      default_choicebubble: "Who should I pick tonight?"
+      }
+      */
 
       // ui state variables
       let currentCenterAction = null;
@@ -836,6 +835,11 @@
       function night1() {
         // TODO: poisoner
         // TODO: if the poisoner ever dies or catches a starpass, their poisoning is removed.
+        let poisoner = getRoleIfInPlay("Poisoner");
+        if (poisoner) {
+          // TODO: poison somebody good!
+        }
+
         // picks a random good player and is more likely to pick someone neighboring the demon.
         let washerwoman = getAppearAsRoleIfInPlay("Washerwoman");
         if (washerwoman) {
@@ -979,7 +983,6 @@
           let wrong;
           let text;
           let seenRole;
-          // TODO: If the only outsider in the game is the drunk librarian do they see themselves?
 
           let learnZero = false;
           let confirmEvil = false;
