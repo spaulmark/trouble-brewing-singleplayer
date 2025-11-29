@@ -603,9 +603,6 @@
       let canExecutePlayer = true;
       let isKillMode = false;
 
-      // TODO: create a grim reveal button
-      // it makes you lose and reveals the grim and enables the new game button
-
       function toggleKillModeBtn() {
         isKillMode = !isKillMode;
         document.body.classList.toggle("kill-mode-active", isKillMode);
@@ -676,6 +673,7 @@
           currentPhase = "day";
           canExecutePlayer = true;
           updatePhaseDisplay();
+          displayPlayerCircle(false);
           // When the day starts, show the button again if we are in kill mode
           if (isKillMode) {
             setupCenterButton("No Execution", transitionToNight);
@@ -765,6 +763,16 @@
       function getRoleIfInPlay(role) {
         for (player of gameStatePlayers) {
           if (player.role === role) {
+            return player;
+          }
+        }
+        return null;
+      }
+
+      // TODO: this also bricks for doubleclaims. only the first guy gets info on n1
+      function getAppearsAsIfAlive(role) {
+        for (player of gameStatePlayers) {
+          if (player.appears_as.role === role && player.alive) {
             return player;
           }
         }
@@ -1257,13 +1265,28 @@
       }
 
       function othernights() {
+        // TODO: unpoison whoever was poisoned last night, but not The Drunk
         // TODO: poisoner
-        // whoever was previously poisoned becomes healthy, but not The Drunk.
         // TODO: monk
         // TODO: imp
         // TODO: ravenkeeper
         // TODO: undertaker
+        const undertaker = getAppearsAsIfAlive("Undertaker");
+        if (undertaker) {
+          // sober undertaker: see the role of the preivous executee
+          // recluse could be evil; spy could be good
+          // if no execution, always empty string
+          // poisoned: see Drunk, garbage, evil role... maybe true info on a good player but not an evil one for sure.
+          // evil: see allies as good.
+          // if spy in play, can confirm good ppl. can also frame people as evil.
+          console.log("hi");
+          undertaker.info_text = "hi";
+        }
         // TODO: empath
+        const empath = getAppearsAsIfAlive("Empath");
+        if (empath) {
+          // sober empath needs to keep track of who is being framed as evil/good for spy/recluse
+        }
         // TODO: ft
 
         // if 2 or less players are alive, and a demon is alive, evil wins.
