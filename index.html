@@ -873,6 +873,25 @@
         }
       }
 
+      function getLivingNeighbors(index) {
+        const players = gameStatePlayers;
+        const n = players.length;
+
+        let left = (index - 1 + n) % n;
+        while (left !== index && !players[left].alive) {
+          left = (left - 1 + n) % n;
+        }
+        if (!players[left].alive) left = null;
+
+        let right = (index + 1) % n;
+        while (right !== index && !players[right].alive) {
+          right = (right + 1) % n;
+        }
+        if (!players[right].alive) right = null;
+
+        return { left, right };
+      }
+
       function night1() {
         // TODO: poisoner
         // TODO: if the poisoner ever dies or catches a starpass, their poisoning is removed.
@@ -1277,9 +1296,20 @@
         let empath = getAppearAsRoleIfInPlay("Empath");
         if (empath) {
           // TODO: night 1 empath.
+          const { left, right } = getLivingNeighbors(empath.seat);
+          const n1 = gameStatePlayers[left];
+          const n2 = gameStatePlayers[right];
+          console.log(n1, n2);
+
+          const soberEmpath = !empath.droisoned && !empath.evil;
+          const evilEmpath = empath.evil;
+          const droisonedEmpath = empath.droisoned && !empath.evil;
+
           // sober+good empath gets true info, might misregister on recluse/spy
           // drunk empath gets false info
           // evil empath frames their allies as good and may or may not claim a 1 or 2 on good ppl
+
+          // TODO: calculate the chance of an empath 2 in every game i guess
         }
         // TODO: fortune teller
         let ft = getAppearAsRoleIfInPlay("Fortune Teller");
