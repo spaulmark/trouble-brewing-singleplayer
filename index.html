@@ -1298,7 +1298,7 @@
         // TODO: monk
         // TODO: imp
         // TODO: ravenkeeper
-        // undertaker
+        // TODO: undertaker
         const undertaker = getAppearsAsIfAlive("Undertaker");
         if (undertaker && previousExecution) {
           // sober undertaker: see the role of the preivous executee
@@ -1326,13 +1326,20 @@
             } else {
               learnRealInfo = true;
             }
-          } else if (droisonedUndertaker) {
-            // TODO: this
+          } else if (droisonedUndertaker || (evilUndertaker && !evilHasGrim)) {
+            // droisoned and evil spyless undertaker are the same thing
+            // that way it gives more credibility to evil players who don't have a spy
+            // TODO: random stuff here. confirm evil players, frame good players, or make random guesses on any player.
+            //
+            // however they might want to frame a fake invest ping as real.
+            // they might want to frame a fake fortune teller yes as an imp.
+            // they might want to support a fake empath's story.
+            // complicated business around here for real.
+            //
           } else if (evilUndertaker) {
             // if evil has a spy they can be a "real" undertaker except they can frame a few good players here and there
             // TODO: this
-            // if evil doesn't have a spy, they can confirm their allies, but have to guess or frame every good player
-            // i suppose they could make some educated guesses like a failed kill is a soldier but like... *rolls eyes*
+            // an undertaker with a spy sees info and can corraborate stories, real or fake
           }
 
           if (learnRealInfo) {
