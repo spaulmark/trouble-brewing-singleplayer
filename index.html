@@ -577,6 +577,7 @@
       let evilHasGrim = false;
       let currentPhase = "day";
       let phaseNumber = 1;
+      let previousExecution = null;
       let gameStatePlayers = [
         /*{
         seat: 0,
@@ -589,6 +590,7 @@
         my_info_text: "A/B yes, C/D no",
         gameover_text: "i saw myself as mayor",
         droisoned: true/false
+        previous_info: [] // some array of useful info for me...?
       }*/
       ];
       /*
@@ -706,6 +708,7 @@
         if (playerToken === null) {
           // check for mayor win
           const mayor = getRoleIfInPlay("Mayor");
+          previousExecution = null;
           if (
             aliveCount === 3 &&
             mayor &&
@@ -719,6 +722,7 @@
         } else {
           // yes execution
           const player = gameStatePlayers[id];
+          previousExecution = player;
           killPlayer(playerToken, id);
           const scarletWoman = getRoleIfInPlay("Scarlet Woman");
           if (player.role === "Imp") {
@@ -767,6 +771,11 @@
           }
         }
         return null;
+      }
+
+      function getRoleIfHealthy(role) {
+        const result = getRoleIfInPlay(role);
+        return result && !result.droisoned;
       }
 
       // TODO: this also bricks for doubleclaims. only the first guy gets info on n1
@@ -838,6 +847,30 @@
 
       function getAllOutsiders() {
         return gameStatePlayers.filter((p) => p.type === "outsider");
+      }
+
+      function appendInfoText(player, text) {
+        if (!player.info_text) {
+          player.info_text = text;
+        } else {
+          player.info_text += `, ${text}`;
+        }
+      }
+
+      function checkIsBaronPossible() {
+        const outsiderClaims = gameStatePlayers.filter(
+          (p) => p.appears_as.type === "outsider"
+        );
+        const outsiderCount = playerCounts[gameStatePlayers.length].outsiders;
+        return outsiderClaims > outsiderCount;
+      }
+
+      function appendPreviousInfo(player, info) {
+        if (!player.previous_info) {
+          player.previous_info = [info];
+        } else {
+          player.previous_info.push(info);
+        }
       }
 
       function night1() {
@@ -1115,12 +1148,7 @@
         if (invest) {
           const healthyInvest = !invest.droisoned && !invest.evil;
           const evilInvest = invest.evil;
-
-          const outsiderClaims = gameStatePlayers.filter(
-            (p) => p.appears_as.type === "outsider"
-          );
-          const outsiderCount = playerCounts[gameStatePlayers.length].outsiders;
-          const isBaronPossible = outsiderClaims > outsiderCount;
+          const isBaronPossible = checkIsBaronPossible();
 
           // outcomes
           let learnRealInfo = false;
@@ -1132,7 +1160,7 @@
           let text;
 
           // sober investigators have 20% to get trolled by a recluse
-          if (healthyInvest && getRoleIfInPlay("Recluse") && percentTrue(20))
+          if (healthyInvest && getRoleIfHealthy("Recluse") && percentTrue(20))
             learnRecluse = true;
 
           // sober investigator learns a minion. priority is on non-scarlet woman
@@ -1217,7 +1245,7 @@
         let chef = getAppearAsRoleIfInPlay("Chef");
         if (chef) {
           // check how many evil players are sitting next to each other in the circle
-          const recluseEvil = flipCoin();
+          const recluseEvil = getRoleIfHealthy("Recluse") && flipCoin(); // the recluse is evil for chef # if he is in the game, sober, and 50% chance
           const spyEvil = flipCoin();
           let correctEvilPairs = countEvilPairs(
             gameStatePlayers,
@@ -1270,17 +1298,70 @@
         // TODO: monk
         // TODO: imp
         // TODO: ravenkeeper
-        // TODO: undertaker
+        // undertaker
         const undertaker = getAppearsAsIfAlive("Undertaker");
-        if (undertaker) {
+        if (undertaker && previousExecution) {
           // sober undertaker: see the role of the preivous executee
+          const soberUndertaker = !undertaker.droisoned && !undertaker.evil;
+          const droisonedUndertaker = undertaker.droisoned && !undertaker.evil;
+          const evilUndertaker = undertaker.evil;
+
+          let infotext = "Unimplemented";
+
+          let learnRealInfo = false;
+          let confirmEvilPlayer = false;
+          let frameGoodPlayer = false;
+          let learnRandomGarbage = false;
+
+          if (soberUndertaker) {
+            // sober undertaker can get trolled by recluse and spy, otherwise learn good info
+            if (previousExecution.role === "Spy" && percentTrue(60)) {
+              confirmEvilPlayer = true;
+            } else if (
+              previousExecution.role === "Recluse" &&
+              percentTrue(60) &&
+              !previousExecution.droisoned
+            ) {
+              frameGoodPlayer = true;
+            } else {
+              learnRealInfo = true;
+            }
+          } else if (droisonedUndertaker) {
+            // TODO: this
+          } else if (evilUndertaker) {
+            // if evil has a spy they can be a "real" undertaker except they can frame a few good players here and there
+            // TODO: this
+            // if evil doesn't have a spy, they can confirm their allies, but have to guess or frame every good player
+            // i suppose they could make some educated guesses like a failed kill is a soldier but like... *rolls eyes*
+          }
+
+          if (learnRealInfo) {
+            infotext = `${previousExecution.name} ${previousExecution.role}`;
+            appendPreviousInfo(undertaker, previousExecution.role);
+          } else if (confirmEvilPlayer) {
+            infotext = `${previousExecution.name} ${previousExecution.appears_as.role}`;
+            appendPreviousInfo(undertaker, previousExecution.appears_as.role);
+          } else if (frameGoodPlayer) {
+            // TODO: draw from a pool of evil roles, you could repeat something you saw. but make it less likely? idk.
+            // you can learn imp only one time,,, hmm
+            // TODO: the bluffs here are complicated and contextual lets do other stuff first...??????
+            //
+            // "evil pool" contains Drunk if they are a townsfolk,
+            // it includes Baron if baron is possible.
+          } else if (learnRandomGarbage) {
+            // learn a random role you haven't learned yet! but not undertaker.
+            // TODO: this as well
+          }
+
           // recluse could be evil; spy could be good
           // if no execution, always empty string
           // poisoned: see Drunk, garbage, evil role... maybe true info on a good player but not an evil one for sure.
           // evil: see allies as good.
           // if spy in play, can confirm good ppl. can also frame people as evil.
-          console.log("hi");
-          undertaker.info_text = "hi";
+          appendInfoText(undertaker, infotext);
+          if (!evilUndertaker) {
+            undertaker.gameover_text = undertaker.info_text;
+          }
         }
         // TODO: empath
         const empath = getAppearsAsIfAlive("Empath");
@@ -1302,6 +1383,7 @@
 
       function generateAndDisplayScript() {
         evilHasGrim = false;
+        previousExecution = null;
         killModeToggleBtn.disabled = false;
         canExecutePlayer = true;
         phaseDisplay.classList.remove("good-wins", "evil-wins");
