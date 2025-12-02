@@ -22,10 +22,11 @@
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: 20; /* Make sure it's on top */
-
         padding: 10px 20px;
         font-size: 1.1em;
         font-weight: bold;
+        min-width: 160px;
+        text-align: center;
         background-color: #555;
         color: var(--text-color);
         border: 2px solid var(--border-color);
@@ -47,10 +48,19 @@
         visibility: visible;
         opacity: 1;
       }
-      #kill-mode-toggle {
+      /* container for the two mode buttons to keep them aligned */
+      #mode-controls {
         position: fixed;
         bottom: 20px;
         right: 20px;
+        display: flex;
+        gap: 12px;
+        z-index: 1000;
+        align-items: center;
+      }
+
+      #kill-mode-toggle {
+        /* no fixed positioning here; contained inside #mode-controls */
         padding: 12px 20px;
         font-size: 1em;
         font-weight: bold;
@@ -61,6 +71,52 @@
         cursor: pointer;
         z-index: 1000;
         transition: background-color 0.3s, color 0.3s;
+      }
+
+      #action-mode-toggle {
+        /* contained inside #mode-controls */
+        padding: 12px 20px;
+        font-size: 1em;
+        font-weight: bold;
+        background-color: #333;
+        color: var(--text-color);
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        cursor: pointer;
+        z-index: 1000;
+        transition: background-color 0.3s, color 0.3s;
+      }
+
+      /* responsive: stack controls on small screens */
+      @media (max-width: 420px) {
+        #mode-controls {
+          right: 12px;
+          bottom: 12px;
+          flex-direction: column-reverse;
+          gap: 8px;
+        }
+        #mode-controls button {
+          min-width: 120px;
+        }
+      }
+
+      body.action-mode-active #action-mode-toggle {
+        background-color: #2e86c1;
+        color: white;
+        border-color: #1f5f8a;
+      }
+
+      body.action-mode-active {
+        background-color: #11202a;
+      }
+
+      .container.action-mode-active {
+        background-color: rgb(35, 60, 75);
+      }
+
+      /* helpful cursor change to indicate action-mode selection */
+      body.action-mode-active .player-token {
+        cursor: pointer;
       }
 
       body.kill-mode-active #kill-mode-toggle {
@@ -128,6 +184,48 @@
       .speech-bubble.visible {
         visibility: visible;
         opacity: 1;
+      }
+      /* --- Action-ready token styling (unspent actions) --- */
+      @keyframes actionPulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(45, 170, 255, 0.25);
+          filter: drop-shadow(0 0 0 rgba(45, 170, 255, 0));
+        }
+        50% {
+          box-shadow: 0 0 18px 8px rgba(45, 170, 255, 0.08);
+          filter: drop-shadow(0 6px 16px rgba(45, 170, 255, 0.12));
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(45, 170, 255, 0.25);
+          filter: drop-shadow(0 0 0 rgba(45, 170, 255, 0));
+        }
+      }
+
+      .player-token.action-ready {
+        animation: actionPulse 2.2s infinite ease-in-out;
+        border-color: rgba(45, 170, 255, 0.9);
+        box-shadow: 0 0 18px rgba(45, 170, 255, 0.35);
+        transform-origin: center center;
+        z-index: 50; /* float above others visually */
+      }
+
+      /* Small badge in the top-right to indicate an available action */
+      .player-token.action-ready::after {
+        content: "⚡";
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #bfefff, #6fd3ff);
+        color: #012233;
+        border: 2px solid rgba(255, 255, 255, 0.9);
+        box-shadow: 0 4px 10px rgba(10, 90, 140, 0.25);
       }
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -389,7 +487,10 @@
         <div class="circle-container" id="circle-container">
           <!-- players appear here -->
         </div>
-        <button id="kill-mode-toggle">Execute Mode: OFF</button>
+        <div id="mode-controls">
+          <button id="action-mode-toggle">Action Mode: OFF</button>
+          <button id="kill-mode-toggle">Execute Mode: OFF</button>
+        </div>
       </div>
     </div>
 
@@ -569,6 +670,7 @@
       const phaseDisplay = document.getElementById("phase-display");
       const centerActionButton = document.getElementById("center-action-btn");
       const killModeToggleBtn = document.getElementById("kill-mode-toggle");
+      const actionModeToggleBtn = document.getElementById("action-mode-toggle");
 
       // magic numbers
       let nightPhaseMS = 1500;
@@ -604,8 +706,21 @@
       let currentCenterAction = null;
       let canExecutePlayer = true;
       let isKillMode = false;
+      let isActionMode = false;
+      // when a slayer (or false-slayer) is selected to act, store their seat
+      let currentActionShooter = null;
 
       function toggleKillModeBtn() {
+        // Turning on kill-mode will turn off action-mode
+        if (isActionMode) {
+          isActionMode = false;
+          document.body.classList.toggle("action-mode-active", false);
+          container.classList.toggle("action-mode-active", false);
+          actionModeToggleBtn.textContent = "Action Mode: OFF";
+          // clear any selection
+          currentActionShooter = null;
+          setupCenterButton(null, null, false);
+        }
         isKillMode = !isKillMode;
         document.body.classList.toggle("kill-mode-active", isKillMode);
         container.classList.toggle("kill-mode-active", isKillMode);
@@ -623,7 +738,38 @@
         }
       }
 
+      function toggleActionModeBtn() {
+        // action mode should only be usable during DAY
+        if (currentPhase !== "day") return;
+
+        isActionMode = !isActionMode;
+        document.body.classList.toggle("action-mode-active", isActionMode);
+        container.classList.toggle("action-mode-active", isActionMode);
+        // when entering action mode, ensure execute-mode is off
+        if (isActionMode && isKillMode) {
+          isKillMode = false;
+          document.body.classList.toggle("kill-mode-active", false);
+          container.classList.toggle("kill-mode-active", false);
+          killModeToggleBtn.textContent = "Execute Mode: OFF";
+        }
+
+        if (isActionMode) {
+          actionModeToggleBtn.textContent = "Action Mode: ON";
+          // center button hidden until a shooter is selected
+          setupCenterButton(null, null, false);
+        } else {
+          actionModeToggleBtn.textContent = "Action Mode: OFF";
+          // clear selection
+          currentActionShooter = null;
+          setupCenterButton(null, null, false);
+        }
+        displayPlayerCircle(false);
+      }
+
       killModeToggleBtn.addEventListener("click", () => toggleKillModeBtn());
+      actionModeToggleBtn.addEventListener("click", () =>
+        toggleActionModeBtn()
+      );
 
       function updatePhaseDisplay() {
         if (phaseDisplay) {
@@ -666,6 +812,15 @@
 
       function transitionToNight() {
         setupCenterButton(null, null, false); // Hide the button during the night
+        // Action mode is only for the day — clear it as we transition
+        if (isActionMode) {
+          isActionMode = false;
+          currentActionShooter = null;
+          if (actionModeToggleBtn)
+            actionModeToggleBtn.textContent = "Action Mode: OFF";
+          document.body.classList.toggle("action-mode-active", false);
+          container.classList.toggle("action-mode-active", false);
+        }
         currentPhase = "night";
         canExecutePlayer = false; // No more executions
         phaseNumber++;
@@ -762,6 +917,109 @@
         }
         toggleKillModeBtn(); // TODO: this will break when we implement virgin
         transitionToNight();
+      }
+
+      // Slayer shoot action: shooterSeat shoots targetSeat during day via action mode
+      function slayerShoot(shooterSeat, targetSeat) {
+        const shooter = gameStatePlayers[shooterSeat];
+        const target = gameStatePlayers[targetSeat];
+
+        if (!shooter || !target || !shooter.alive || !target.alive) return;
+        if (shooter.shotUsed) return; // already used
+
+        // mark shooter used and update texts
+        shooter.shotUsed = true;
+        shooter.actionmodeText = null;
+        shooter.info_text = `I shot ${target.name}`;
+
+        // Exit action mode immediately after the slayer takes their shot
+        if (isActionMode) {
+          isActionMode = false;
+          currentActionShooter = null;
+          document.body.classList.toggle("action-mode-active", false);
+          container.classList.toggle("action-mode-active", false);
+          if (actionModeToggleBtn)
+            actionModeToggleBtn.textContent = "Action Mode: OFF";
+          // hide center button if visible (cancel button or similar)
+          setupCenterButton(null, null, false);
+        }
+
+        // determine whether this shot actually has an effect
+        // False-slayers (players who only appear as Slayer e.g. drunk or evil bluff) have no effect
+        // A real slayer who is droisoned cannot kill an Imp or a Recluse
+        const shooterIsRealSlayer = shooter.role === "Slayer";
+        let shotEffective = false;
+
+        if (!shooterIsRealSlayer) {
+          // fake — no effect
+          shotEffective = false;
+        } else {
+          // real slayer
+          shooter.gameover_text = shooter.info_text;
+          if (
+            !shooter.droisoned &&
+            (target.role === "Imp" || target.role === "Recluse")
+          ) {
+            // a healthy slayer can kill an imp or a recluse
+            shotEffective = true;
+          } else {
+            shotEffective = false;
+          }
+        }
+
+        let killed = false;
+
+        if (shotEffective) {
+          if (target.role === "Imp") {
+            // imp dies
+            const targetToken = circleContainer.children[targetSeat];
+            killPlayer(targetToken, targetSeat);
+            killed = true;
+
+            // if there is a scarlet woman alive and not droisoned and enough players remain, convert her to the Imp
+            const scarletWoman = getRoleIfInPlay("Scarlet Woman");
+            const aliveCount = gameStatePlayers.filter((p) => p.alive).length;
+            const evilLoses =
+              !scarletWoman ||
+              !scarletWoman.alive ||
+              scarletWoman.droisoned ||
+              aliveCount < 5;
+            if (evilLoses) {
+              endGame(true);
+              return true; // game ended
+            }
+            // otherwise the scarlet woman becomes the imp
+            scarletWoman.role = "Imp";
+            scarletWoman.type = "demon";
+          } else if (target.role === "Recluse") {
+            // recluse only dies rarely (5% chance)
+            if (percentTrue(5)) {
+              const targetToken = circleContainer.children[targetSeat];
+              killPlayer(targetToken, targetSeat);
+              killed = true;
+            }
+          } else {
+            // Non-Imp/non-Recluse targets do NOT die from a slayer shot — the shot is consumed and nothing else happens
+            // killed remains false
+          }
+        } else {
+          // shot had no effect (false slayer or restricted droisoned slayer) — nothing else to do
+        }
+
+        // after shot, check for trivial endgame conditions similar to execution
+        if (killed) {
+          const alivePlayers = gameStatePlayers.filter((p) => p.alive);
+          if (alivePlayers.length <= 2) {
+            const demon = alivePlayers.find((p) => p.type === "demon");
+            if (demon) {
+              endGame(false);
+              return true;
+            }
+          }
+        }
+
+        // if we got here no endGame was triggered
+        return false;
       }
 
       function getRoleIfInPlay(role) {
@@ -1422,6 +1680,16 @@
         evilHasGrim = false;
         previousExecution = null;
         killModeToggleBtn.disabled = false;
+        // action mode should be re-enabled for a new game
+        if (actionModeToggleBtn) actionModeToggleBtn.disabled = false;
+        // reset action-mode state when a new game is started
+        isActionMode = false;
+        currentActionShooter = null;
+        if (actionModeToggleBtn)
+          actionModeToggleBtn.textContent = "Action Mode: OFF";
+        // make sure any visual active classes are cleared from body/container
+        document.body.classList.toggle("action-mode-active", false);
+        container.classList.toggle("action-mode-active", false);
         canExecutePlayer = true;
         phaseDisplay.classList.remove("good-wins", "evil-wins");
 
@@ -1549,10 +1817,19 @@
             alive: true,
             appears_as,
             info_text: "",
+            // For action mode (slayer-like one-shot day actions)
+            // default is null and will fall back to info_text if null
+            actionmodeText: null,
+            // whether this player has used their one-shot action
+            shotUsed: false,
             droisoned: token.name === "Drunk",
             gameover_text,
           };
           gameStatePlayers.push(player);
+          // Slayer and players who appear as Slayer (drunk bluffs or evil bluffs) should be able to shoot (one-shot day action)
+          if (player.role === "Slayer" || player.appears_as.role === "Slayer") {
+            player.actionmodeText = "I can shoot";
+          }
         }
 
         night1();
@@ -1579,9 +1856,16 @@
           const playerName = player.name;
 
           const tokenEl = document.createElement("div");
+          // highlight players who have an unspent action while action mode is active
+          const actionReady =
+            !grim_reveal &&
+            isActionMode &&
+            player.alive &&
+            player.actionmodeText != null &&
+            !player.shotUsed;
           tokenEl.className = `player-token ${role.type} ${
             player.alive ? "" : "dead"
-          }`;
+          }${actionReady ? " action-ready" : ""}`;
 
           // The transform places the element around the circle. The final rotate(-angle) keeps the text upright.
           tokenEl.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) translate(60px) rotate(-${angle}deg)`;
@@ -1590,6 +1874,24 @@
 
           if (grim_reveal) {
             speech = player.gameover_text || "";
+          } else if (isActionMode) {
+            // Action mode display rules: show actionmodeText if present; otherwise fall back to standard info_text
+            // If this player is currently selected as the shooter, show the selection prompt
+            if (currentActionShooter !== null && currentActionShooter === i) {
+              speech = "Who to shoot?";
+              // ensure center button shows cancel while a shooter is selected
+              setupCenterButton("Cancel", () => {
+                currentActionShooter = null;
+                setupCenterButton(null, null, false);
+                displayPlayerCircle(false);
+              });
+            } else {
+              // prefer actionmodeText, then fallback to info_text
+              speech =
+                player.actionmodeText != null
+                  ? player.actionmodeText
+                  : player.info_text || "";
+            }
           } else {
             speech = player.info_text || "";
           }
@@ -1604,10 +1906,52 @@
           // Add a click listener to toggle the 'dead' class on the token.
           // This allows you to mark players as executed.
           tokenEl.addEventListener("click", () => {
+            // kill mode click
             if (isKillMode) {
               executePlayer(tokenEl, i);
+              return;
             }
-            // TODO: If kill mode is off, clicking does nothing. (for now)
+
+            // action mode click
+            if (isActionMode) {
+              // only during day
+              if (currentPhase !== "day") return;
+
+              const clicked = gameStatePlayers[i];
+              if (!clicked.alive) return;
+
+              // if we don't currently have a shooter selected, clicking a shooter selects them
+              if (currentActionShooter === null) {
+                if (clicked.actionmodeText && !clicked.shotUsed) {
+                  currentActionShooter = i;
+                  // show cancel button
+                  setupCenterButton("Cancel", () => {
+                    currentActionShooter = null;
+                    setupCenterButton(null, null, false);
+                    displayPlayerCircle(false);
+                  });
+                  displayPlayerCircle(false);
+                }
+                return;
+              }
+
+              // if a shooter is selected and we click another player, that is the target
+              if (currentActionShooter !== null) {
+                const shooter = gameStatePlayers[currentActionShooter];
+                // clicking the shooter again is a no-op (cancel via center button)
+                if (currentActionShooter === i) return;
+                // perform the shooting action and respect endGame
+                const ended = slayerShoot(currentActionShooter, i);
+                // if the shot did not end the game, clear selection and re-render
+                if (!ended) {
+                  currentActionShooter = null;
+                  setupCenterButton(null, null, false);
+                  displayPlayerCircle(false);
+                }
+              }
+              return;
+            }
+            // otherwise clicking does nothing for now
           });
 
           circleContainer.appendChild(tokenEl);
@@ -1621,6 +1965,7 @@
         killModeToggleBtn.textContent = "Execute Mode: OFF";
 
         killModeToggleBtn.disabled = true;
+        if (actionModeToggleBtn) actionModeToggleBtn.disabled = true;
 
         phaseDisplay.classList.remove("good-wins", "evil-wins");
         phaseDisplay.textContent = goodWon ? "GOOD WIN" : "EVIL WIN";
@@ -1629,6 +1974,16 @@
         setupCenterButton(null, null, false);
 
         canExecutePlayer = false;
+
+        // clear any lingering action-mode state so grim reveal looks correct
+        if (isActionMode) {
+          isActionMode = false;
+          currentActionShooter = null;
+          document.body.classList.remove("action-mode-active");
+          container.classList.remove("action-mode-active");
+          if (actionModeToggleBtn)
+            actionModeToggleBtn.textContent = "Action Mode: OFF";
+        }
 
         displayPlayerCircle(true); // grim reveal
       }
