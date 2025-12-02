@@ -12,8 +12,6 @@ Ravenkeeper
 
 Virgin
 
-Slayer
-
 Soldier
 
 Mayor -- still needs the someone else might die property
@@ -31,6 +29,8 @@ Librarian
 Investigator
 
 Chef
+
+Slayer
 
 Saint
 
