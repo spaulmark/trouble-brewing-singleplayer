@@ -708,7 +708,7 @@
       let isKillMode = false;
       let isActionMode = false;
       // when a slayer (or false-slayer) is selected to act, store their seat
-      let currentActionShooter = null;
+      let currentActor = null;
 
       function toggleKillModeBtn() {
         // Turning on kill-mode will turn off action-mode
@@ -718,7 +718,7 @@
           container.classList.toggle("action-mode-active", false);
           actionModeToggleBtn.textContent = "Action Mode: OFF";
           // clear any selection
-          currentActionShooter = null;
+          currentActor = null;
           setupCenterButton(null, null, false);
           // redraw tokens so action-ready badges and action-mode visuals disappear immediately
           displayPlayerCircle(false);
@@ -759,12 +759,12 @@
 
         if (isActionMode) {
           actionModeToggleBtn.textContent = "Action Mode: ON";
-          // center button hidden until a shooter is selected
+          // center button hidden until a actor is selected
           setupCenterButton(null, null, false);
         } else {
           actionModeToggleBtn.textContent = "Action Mode: OFF";
           // clear selection
-          currentActionShooter = null;
+          currentActor = null;
           setupCenterButton(null, null, false);
         }
         displayPlayerCircle(false);
@@ -819,7 +819,7 @@
         // Action mode is only for the day — clear it as we transition
         if (isActionMode) {
           isActionMode = false;
-          currentActionShooter = null;
+          currentActor = null;
           if (actionModeToggleBtn)
             actionModeToggleBtn.textContent = "Action Mode: OFF";
           document.body.classList.toggle("action-mode-active", false);
@@ -919,7 +919,7 @@
             }
           }
         }
-        toggleKillModeBtn(); // TODO: this will break when we implement virgin
+        if (isKillMode) toggleKillModeBtn(); // TODO: do a double check on this later after virgin is done, AI agent don't worry about this comment
         transitionToNight();
       }
 
@@ -939,7 +939,7 @@
         // Exit action mode immediately after the slayer takes their shot
         if (isActionMode) {
           isActionMode = false;
-          currentActionShooter = null;
+          currentActor = null;
           document.body.classList.toggle("action-mode-active", false);
           container.classList.toggle("action-mode-active", false);
           if (actionModeToggleBtn)
@@ -1023,6 +1023,60 @@
         }
 
         // if we got here no endGame was triggered
+        return false;
+      }
+
+      // Virgin nominate action: actorSeat (appears as Virgin) asks who nominated them.
+      // If the actor is a real, sober Virgin and the nominator is a townsfolk, that nominator is executed immediately and the day ends.
+      // If the actor is droisoned or not actually the Virgin, they lose the ability and their info_text is updated.
+      function virginNominate(actorSeat, nominatorSeat) {
+        const actor = gameStatePlayers[actorSeat];
+        const nominator = gameStatePlayers[nominatorSeat];
+
+        if (!actor || !nominator || !actor.alive || !nominator.alive)
+          return false;
+        if (actor.shotUsed) return false; // already used
+
+        // consume the virgin's action
+        actor.shotUsed = true;
+        actor.actionmodeText = null;
+        const nominationText = `${nominator.name} nominated me`;
+        actor.info_text = nominationText;
+        if (actor.role === "Virgin") actor.gameover_text = nominationText;
+
+        // Exit action mode immediately after acting
+        if (isActionMode) {
+          isActionMode = false;
+          currentActor = null;
+          document.body.classList.toggle("action-mode-active", false);
+          container.classList.toggle("action-mode-active", false);
+          if (actionModeToggleBtn)
+            actionModeToggleBtn.textContent = "Action Mode: OFF";
+          setupCenterButton(null, null, false);
+        }
+
+        const actorIsRealVirgin = actor.role === "Virgin";
+
+        // Only a real, sober Virgin punishes certain nominators
+        if (actorIsRealVirgin && !actor.droisoned) {
+          if (nominator.role === "Spy") {
+            // Spy has a 50/50 chance of being executed when they nominate the Virgin
+            if (percentTrue(50)) {
+              const nominatorToken = circleContainer.children[nominatorSeat];
+              executePlayer(nominatorToken, nominatorSeat);
+              return true;
+            }
+            // Spy survived the 50/50 — nothing else
+          } else if (nominator.type === "townsfolk") {
+            // execute the nominator immediately (this will handle endgame checks and transition to night)
+            const nominatorToken = circleContainer.children[nominatorSeat];
+            executePlayer(nominatorToken, nominatorSeat);
+            return true; // day ended via execution/transition
+          }
+        }
+
+        // Otherwise the ability is lost, nothing else happens and the day continues
+        displayPlayerCircle(false);
         return false;
       }
 
@@ -1607,6 +1661,7 @@
 
           if (soberUndertaker) {
             // sober undertaker can get trolled by recluse and spy, otherwise learn good info
+            // TODO: a spy that got executed by a virgin should always trick an undertaker
             if (previousExecution.role === "Spy" && percentTrue(60)) {
               confirmEvilPlayer = true;
             } else if (
@@ -1688,7 +1743,7 @@
         if (actionModeToggleBtn) actionModeToggleBtn.disabled = false;
         // reset action-mode state when a new game is started
         isActionMode = false;
-        currentActionShooter = null;
+        currentActor = null;
         if (actionModeToggleBtn)
           actionModeToggleBtn.textContent = "Action Mode: OFF";
         // make sure any visual active classes are cleared from body/container
@@ -1834,6 +1889,10 @@
           if (player.role === "Slayer" || player.appears_as.role === "Slayer") {
             player.actionmodeText = "I can shoot";
           }
+          // Virgin: a one-shot nomination ability
+          if (player.role === "Virgin" || player.appears_as.role === "Virgin") {
+            player.actionmodeText = "Has Ability";
+          }
         }
 
         night1();
@@ -1880,12 +1939,16 @@
             speech = player.gameover_text || "";
           } else if (isActionMode) {
             // Action mode display rules: show actionmodeText if present; otherwise fall back to standard info_text
-            // If this player is currently selected as the shooter, show the selection prompt
-            if (currentActionShooter !== null && currentActionShooter === i) {
-              speech = "Who to shoot?";
-              // ensure center button shows cancel while a shooter is selected
+            // If this player is currently selected as the actor, show the selection prompt
+            if (currentActor !== null && currentActor === i) {
+              const actingPlayer = gameStatePlayers[currentActor];
+              const seenRole = actingPlayer.appears_as.role;
+              if (seenRole === "Slayer") speech = "Who to shoot?";
+              else if (seenRole === "Virgin") speech = "Who nominates me?";
+              else speech = "Who to pick?";
+              // ensure center button shows cancel while a actor is selected
               setupCenterButton("Cancel", () => {
-                currentActionShooter = null;
+                currentActor = null;
                 setupCenterButton(null, null, false);
                 displayPlayerCircle(false);
               });
@@ -1924,13 +1987,13 @@
               const clicked = gameStatePlayers[i];
               if (!clicked.alive) return;
 
-              // if we don't currently have a shooter selected, clicking a shooter selects them
-              if (currentActionShooter === null) {
+              // if we don't currently have a actor selected, clicking a actor selects them
+              if (currentActor === null) {
                 if (clicked.actionmodeText && !clicked.shotUsed) {
-                  currentActionShooter = i;
+                  currentActor = i;
                   // show cancel button
                   setupCenterButton("Cancel", () => {
-                    currentActionShooter = null;
+                    currentActor = null;
                     setupCenterButton(null, null, false);
                     displayPlayerCircle(false);
                   });
@@ -1939,16 +2002,27 @@
                 return;
               }
 
-              // if a shooter is selected and we click another player, that is the target
-              if (currentActionShooter !== null) {
-                const shooter = gameStatePlayers[currentActionShooter];
-                // clicking the shooter again is a no-op (cancel via center button)
-                if (currentActionShooter === i) return;
-                // perform the shooting action and respect endGame
-                const ended = slayerShoot(currentActionShooter, i);
-                // if the shot did not end the game, clear selection and re-render
+              // if a actor is selected and we click another player, that is the target
+              if (currentActor !== null) {
+                const actor = gameStatePlayers[currentActor];
+                // clicking the actor again is a no-op (cancel via center button)
+                if (currentActor === i) return;
+                // decide which action to run based on the actor's apparent role
+                let ended = false;
+                if (
+                  actor.appears_as.role === "Slayer" ||
+                  actor.role === "Slayer"
+                ) {
+                  ended = slayerShoot(currentActor, i);
+                } else if (
+                  actor.appears_as.role === "Virgin" ||
+                  actor.role === "Virgin"
+                ) {
+                  ended = virginNominate(currentActor, i);
+                }
+                // if the action did not end the game/day, clear selection and re-render
                 if (!ended) {
-                  currentActionShooter = null;
+                  currentActor = null;
                   setupCenterButton(null, null, false);
                   displayPlayerCircle(false);
                 }
@@ -1982,7 +2056,7 @@
         // clear any lingering action-mode state so grim reveal looks correct
         if (isActionMode) {
           isActionMode = false;
-          currentActionShooter = null;
+          currentActor = null;
           document.body.classList.remove("action-mode-active");
           container.classList.remove("action-mode-active");
           if (actionModeToggleBtn)

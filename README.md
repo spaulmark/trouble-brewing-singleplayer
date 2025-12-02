@@ -10,8 +10,6 @@ Monk
 
 Ravenkeeper
 
-Virgin
-
 Soldier
 
 Mayor -- still needs the someone else might die property
@@ -29,6 +27,8 @@ Librarian
 Investigator
 
 Chef
+
+Virgin
 
 Slayer
 
