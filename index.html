@@ -720,6 +720,8 @@
           // clear any selection
           currentActionShooter = null;
           setupCenterButton(null, null, false);
+          // redraw tokens so action-ready badges and action-mode visuals disappear immediately
+          displayPlayerCircle(false);
         }
         isKillMode = !isKillMode;
         document.body.classList.toggle("kill-mode-active", isKillMode);
@@ -736,6 +738,8 @@
           // Always hide the button when not in kill mode
           setupCenterButton(null, null, false);
         }
+        // refresh the circle tokens so cursor and visuals reflect the new mode
+        displayPlayerCircle(false);
       }
 
       function toggleActionModeBtn() {
