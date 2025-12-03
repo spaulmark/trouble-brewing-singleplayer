@@ -227,6 +227,14 @@
         border: 2px solid rgba(255, 255, 255, 0.9);
         box-shadow: 0 4px 10px rgba(10, 90, 140, 0.25);
       }
+      /* Fortune Teller uses a different badge (warning) instead of the lightning bolt */
+      .player-token.action-ready[data-role="Fortune Teller"]::after {
+        content: "⚠️";
+        font-size: 12px;
+        background: linear-gradient(135deg, #fff5b1, #ffe07a);
+        color: #332200;
+        border-color: rgba(255, 255, 255, 0.9);
+      }
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           Helvetica, Arial, sans-serif;
@@ -1631,11 +1639,59 @@
         // TODO: fortune teller
         let ft = getAppearAsRoleIfInPlay("Fortune Teller");
         if (ft) {
-          // TODO: night 1 fortune teller
-          // if the FT is real, set up a red herring
-          // if the FT is drunk/evil, set up a frame map - 2 red herrings, both on good players.
-          // unless its late in the game or something then you might give a yes idk
-          // recluses usually give a yes
+          // Night 1 Fortune Teller setup and initial check
+          // 1) red_herring: any good player (including FT themself if good), but NOT a Recluse
+          const goodNonRecluse = gameStatePlayers.filter(
+            (p) => !p.evil && p.role !== "Recluse"
+          );
+          if (goodNonRecluse.length > 0) {
+            const chosen = getRandomItem(goodNonRecluse);
+            ft.red_herring = chosen.seat;
+          } else {
+            ft.red_herring = ft.seat;
+          }
+
+          // 2) frame_map: two different good players (not the fortune teller)
+          const goodOthers = gameStatePlayers.filter(
+            (p) => !p.evil && p.seat !== ft.seat
+          );
+          const frameSel = getRandomItems(
+            goodOthers,
+            Math.min(2, goodOthers.length)
+          ).selected;
+          ft.frame_map = frameSel.map((p) => p.seat);
+
+          // Now perform the Night 1 check: pick 2 random players (may include yourself)
+          const picks = getRandomItems(gameStatePlayers, 2).selected;
+          const x = picks[0];
+          const y = picks[1] || picks[0];
+
+          // Helper to set result
+          function setFTResult(res) {
+            ft.info_text = `${x.name}/${y.name} ${res ? "Yes" : "No"}`;
+            if (!ft.evil) ft.gameover_text = ft.info_text;
+          }
+
+          const shooterIsRealFT = ft.role === "Fortune Teller";
+
+          if (shooterIsRealFT && !ft.droisoned && !ft.evil) {
+            // healthy real FT: Yes if either is a demon or the red herring
+            const eitherIsDemon = x.role === "Imp" || y.role === "Imp";
+            const eitherIsRedHerring =
+              x.seat === ft.red_herring || y.seat === ft.red_herring;
+            // recluse special: 75% chance to trigger Yes if either is Recluse
+            const recluseTrigger =
+              (x.role === "Recluse" || y.role === "Recluse") && percentTrue(75);
+            if (eitherIsDemon || eitherIsRedHerring || recluseTrigger)
+              setFTResult(true);
+            else setFTResult(false);
+          } else {
+            // droisoned or evil FT: they learn YES if either seat is in the frame_map
+            const inFrame =
+              ft.frame_map &&
+              (ft.frame_map.includes(x.seat) || ft.frame_map.includes(y.seat));
+            setFTResult(!!inFrame);
+          }
         }
       }
 
@@ -1723,7 +1779,55 @@
         if (empath) {
           // sober empath needs to keep track of who is being framed as evil/good for spy/recluse
         }
-        // TODO: ft
+        // Fortune Teller nightly checks: process chosen targets (if any) or pick randomly
+        const ftNight = getAppearsAsIfAlive("Fortune Teller");
+        if (ftNight) {
+          // determine targets: use chosen targets if provided, otherwise pick 2 random alive players
+          let targets = [];
+          if (ftNight.ftChosenTargets && ftNight.ftChosenTargets.length === 2) {
+            targets = ftNight.ftChosenTargets.map((s) => gameStatePlayers[s]);
+          } else {
+            const alivePlayers = gameStatePlayers.filter((p) => p.alive);
+            const picks = getRandomItems(
+              alivePlayers,
+              Math.min(2, alivePlayers.length)
+            ).selected;
+            targets = picks;
+          }
+          const x = targets[0];
+          const y = targets[1] || targets[0];
+
+          function setFTResultFt(res) {
+            appendInfoText(
+              ftNight,
+              `${x.name}/${y.name} ${res ? "Yes" : "No"}`
+            );
+            if (!ftNight.evil) ftNight.gameover_text = ftNight.info_text;
+          }
+
+          const realFT = ftNight.role === "Fortune Teller";
+          if (realFT && !ftNight.droisoned && !ftNight.evil) {
+            const eitherIsDemon = x.role === "Imp" || y.role === "Imp";
+            const eitherIsRedHerring =
+              x.seat === ftNight.red_herring || y.seat === ftNight.red_herring;
+            const recluseTrigger =
+              (x.role === "Recluse" || y.role === "Recluse") && percentTrue(75);
+            if (eitherIsDemon || eitherIsRedHerring || recluseTrigger)
+              setFTResultFt(true);
+            else setFTResultFt(false);
+          } else {
+            const inFrame =
+              ftNight.frame_map &&
+              (ftNight.frame_map.includes(x.seat) ||
+                ftNight.frame_map.includes(y.seat));
+            setFTResultFt(!!inFrame);
+          }
+
+          // clear chosen targets so the player must pick again for the next night
+          ftNight.ftChosenTargets = null;
+          if (ftNight.alive)
+            ftNight.actionmodeText = "Who should I check tonight?";
+        }
 
         // if 2 or less players are alive, and a demon is alive, evil wins.
         const alivePlayers = gameStatePlayers.filter((p) => p.alive);
@@ -1895,6 +1999,15 @@
           if (player.role === "Virgin" || player.appears_as.role === "Virgin") {
             player.actionmodeText = "Has Ability";
           }
+          // Fortune Teller: nightly check selector (select two players during day for night checks)
+          if (
+            player.role === "Fortune Teller" ||
+            player.appears_as.role === "Fortune Teller"
+          ) {
+            player.actionmodeText = "Who do I check tonight?";
+            // chosen targets for the upcoming night (set by player during the day)
+            player.ftChosenTargets = null;
+          }
         }
 
         night1();
@@ -1926,12 +2039,17 @@
             !grim_reveal &&
             player.alive &&
             player.actionmodeText != null &&
-            !player.shotUsed;
+            !player.shotUsed &&
+            // Fortune Teller who already has chosen targets for tonight should not show the badge
+            !(player.ftChosenTargets && player.ftChosenTargets.length === 2);
           // actionReady is specifically for animation during action mode
           const actionReady = isActionMode && hasUnspentAction;
           tokenEl.className = `player-token ${role.type} ${
             player.alive ? "" : "dead"
           }${hasUnspentAction ? " action-ready" : ""}`;
+
+          // expose the appears-as role on the DOM node for CSS targeting (e.g. Fortune Teller badge)
+          tokenEl.setAttribute("data-role", role.role);
 
           // The transform places the element around the circle. The final rotate(-angle) keeps the text upright.
           tokenEl.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) translate(60px) rotate(-${angle}deg)`;
@@ -1948,6 +2066,8 @@
               const seenRole = actingPlayer.appears_as.role;
               if (seenRole === "Slayer") speech = "Who to shoot?";
               else if (seenRole === "Virgin") speech = "Who nominates me?";
+              else if (seenRole === "Fortune Teller")
+                speech = "Pick two players";
               else speech = "Who to pick?";
               // ensure center button shows cancel while a actor is selected
               setupCenterButton("Cancel", () => {
@@ -2042,26 +2162,70 @@
               // if a actor is selected and we click another player, that is the target
               if (currentActor !== null) {
                 const actor = gameStatePlayers[currentActor];
-                // clicking the actor again is a no-op (cancel via center button)
-                if (currentActor === i) return;
                 // decide which action to run based on the actor's apparent role
-                let ended = false;
+                // Slayer: single target kill-like behavior
                 if (
                   actor.appears_as.role === "Slayer" ||
                   actor.role === "Slayer"
                 ) {
-                  ended = slayerShoot(currentActor, i);
-                } else if (
+                  // clicking the actor again is a no-op for Slayer
+                  if (currentActor === i) return;
+                  const ended = slayerShoot(currentActor, i);
+                  if (!ended) {
+                    currentActor = null;
+                    setupCenterButton(null, null, false);
+                    displayPlayerCircle(false);
+                  }
+                }
+                // Virgin: single-target nominate behavior
+                else if (
                   actor.appears_as.role === "Virgin" ||
                   actor.role === "Virgin"
                 ) {
-                  ended = virginNominate(currentActor, i);
+                  // clicking the actor again is a no-op for Virgin
+                  if (currentActor === i) return;
+                  const ended = virginNominate(currentActor, i);
+                  if (!ended) {
+                    currentActor = null;
+                    setupCenterButton(null, null, false);
+                    displayPlayerCircle(false);
+                  }
                 }
-                // if the action did not end the game/day, clear selection and re-render
-                if (!ended) {
-                  currentActor = null;
-                  setupCenterButton(null, null, false);
-                  displayPlayerCircle(false);
+                // Fortune Teller: select two different targets during the day to set up the night's check
+                else if (
+                  actor.appears_as.role === "Fortune Teller" ||
+                  actor.role === "Fortune Teller"
+                ) {
+                  // initialize pending selection store
+                  if (!actor.ftPending) actor.ftPending = [];
+                  // ignore duplicate picks
+                  if (actor.ftPending.includes(i)) return;
+                  actor.ftPending.push(i);
+                  // if we now have two picks, commit them
+                  if (actor.ftPending.length === 2) {
+                    actor.ftChosenTargets = [...actor.ftPending];
+                    const a = gameStatePlayers[actor.ftChosenTargets[0]].name;
+                    const b = gameStatePlayers[actor.ftChosenTargets[1]].name;
+                    actor.actionmodeText = `Checking ${a}/${b}`;
+                    actor.ftPending = null;
+                    // exit action mode after committing the two picks
+                    currentActor = null;
+                    if (isActionMode) {
+                      isActionMode = false;
+                      document.body.classList.toggle(
+                        "action-mode-active",
+                        false
+                      );
+                      container.classList.toggle("action-mode-active", false);
+                      if (actionModeToggleBtn)
+                        actionModeToggleBtn.textContent = "Action Mode: OFF";
+                    }
+                    setupCenterButton(null, null, false);
+                    displayPlayerCircle(false);
+                  } else {
+                    // need a second pick, keep actor selected
+                    displayPlayerCircle(false);
+                  }
                 }
               }
               return;
