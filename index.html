@@ -707,6 +707,7 @@
       let canExecutePlayer = true;
       let isKillMode = false;
       let isActionMode = false;
+      let gameEnded = false;
       // when a slayer (or false-slayer) is selected to act, store their seat
       let currentActor = null;
 
@@ -1738,6 +1739,7 @@
       function generateAndDisplayScript() {
         evilHasGrim = false;
         previousExecution = null;
+        gameEnded = false;
         killModeToggleBtn.disabled = false;
         // action mode should be re-enabled for a new game
         if (actionModeToggleBtn) actionModeToggleBtn.disabled = false;
@@ -1985,8 +1987,13 @@
             }
 
             // if not in kill mode or action mode, and this player has an action,
-            // auto-activate action mode and select them (but only during day)
-            if (!isActionMode && !isKillMode && currentPhase === "day") {
+            // auto-activate action mode and select them (but only during day and game hasn't ended)
+            if (
+              !isActionMode &&
+              !isKillMode &&
+              currentPhase === "day" &&
+              !gameEnded
+            ) {
               if (
                 clicked.alive &&
                 clicked.actionmodeText &&
@@ -2067,6 +2074,7 @@
       }
 
       function endGame(goodWon) {
+        gameEnded = true;
         isKillMode = false;
         document.body.classList.remove("kill-mode-active");
         container.classList.remove("kill-mode-active");
