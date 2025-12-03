@@ -1632,7 +1632,7 @@
         if (ft) {
           // TODO: night 1 fortune teller
           // if the FT is real, set up a red herring
-          // if the FT is drunk/evil, set up a frame map, but always give a no on the demon
+          // if the FT is drunk/evil, set up a frame map - 2 red herrings, both on good players.
           // unless its late in the game or something then you might give a yes idk
           // recluses usually give a yes
         }
@@ -1919,16 +1919,17 @@
           const playerName = player.name;
 
           const tokenEl = document.createElement("div");
-          // highlight players who have an unspent action while action mode is active
-          const actionReady =
+          // highlight players who have an unspent action (always show lightning badge)
+          const hasUnspentAction =
             !grim_reveal &&
-            isActionMode &&
             player.alive &&
             player.actionmodeText != null &&
             !player.shotUsed;
+          // actionReady is specifically for animation during action mode
+          const actionReady = isActionMode && hasUnspentAction;
           tokenEl.className = `player-token ${role.type} ${
             player.alive ? "" : "dead"
-          }${actionReady ? " action-ready" : ""}`;
+          }${hasUnspentAction ? " action-ready" : ""}`;
 
           // The transform places the element around the circle. The final rotate(-angle) keeps the text upright.
           tokenEl.style.transform = `translate(${x}px, ${y}px) rotate(${angle}deg) translate(60px) rotate(-${angle}deg)`;
@@ -1938,7 +1939,7 @@
           if (grim_reveal) {
             speech = player.gameover_text || "";
           } else if (isActionMode) {
-            // Action mode display rules: show actionmodeText if present; otherwise fall back to standard info_text
+            // Action mode display rules: show actionmodeText if present and player is alive; otherwise fall back to standard info_text
             // If this player is currently selected as the actor, show the selection prompt
             if (currentActor !== null && currentActor === i) {
               const actingPlayer = gameStatePlayers[currentActor];
@@ -1953,9 +1954,11 @@
                 displayPlayerCircle(false);
               });
             } else {
-              // prefer actionmodeText, then fallback to info_text
+              // prefer actionmodeText (if player is alive and action not used), then fallback to info_text
               speech =
-                player.actionmodeText != null
+                player.alive &&
+                player.actionmodeText != null &&
+                !player.shotUsed
                   ? player.actionmodeText
                   : player.info_text || "";
             }
@@ -1973,10 +1976,38 @@
           // Add a click listener to toggle the 'dead' class on the token.
           // This allows you to mark players as executed.
           tokenEl.addEventListener("click", () => {
+            const clicked = gameStatePlayers[i];
+
             // kill mode click
             if (isKillMode) {
               executePlayer(tokenEl, i);
               return;
+            }
+
+            // if not in kill mode or action mode, and this player has an action,
+            // auto-activate action mode and select them (but only during day)
+            if (!isActionMode && !isKillMode && currentPhase === "day") {
+              if (
+                clicked.alive &&
+                clicked.actionmodeText &&
+                !clicked.shotUsed
+              ) {
+                // enable action mode
+                isActionMode = true;
+                document.body.classList.toggle("action-mode-active", true);
+                container.classList.toggle("action-mode-active", true);
+                if (actionModeToggleBtn)
+                  actionModeToggleBtn.textContent = "Action Mode: ON";
+                // select this player
+                currentActor = i;
+                setupCenterButton("Cancel", () => {
+                  currentActor = null;
+                  setupCenterButton(null, null, false);
+                  displayPlayerCircle(false);
+                });
+                displayPlayerCircle(false);
+                return;
+              }
             }
 
             // action mode click
@@ -1984,7 +2015,6 @@
               // only during day
               if (currentPhase !== "day") return;
 
-              const clicked = gameStatePlayers[i];
               if (!clicked.alive) return;
 
               // if we don't currently have a actor selected, clicking a actor selects them
