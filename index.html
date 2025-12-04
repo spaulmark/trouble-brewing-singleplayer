@@ -1713,9 +1713,12 @@
         // TODO: unpoison whoever was poisoned last night, but not The Drunk
         // TODO: poisoner
 
-        // Monk protection selection
+        // monk
         let monkSaved = null;
         const monk = getAppearsAsIfAlive("Monk");
+
+        // TODO: monk records who they saved each night.
+        // their save for the upcoming night is in () brackets
         if (monk) {
           const isRealMonk = monk.role === "Monk";
           // Only a real, sober Monk can protect someone
@@ -1813,13 +1816,15 @@
         }
         // Fortune Teller nightly checks: process chosen targets (if any) or pick randomly
 
+        // TODO: fortune teller records their upcoming pick in (A/B) brackets
+
         // TODO: a fortune teller who picks randomly will never randomly pick the person who died tonight to the imp.
-        const ftNight = getAppearsAsIfAlive("Fortune Teller");
-        if (ftNight) {
+        const ft = getAppearsAsIfAlive("Fortune Teller");
+        if (ft) {
           // determine targets: use chosen targets if provided, otherwise pick 2 random alive players
           let targets = [];
-          if (ftNight.ftChosenTargets && ftNight.ftChosenTargets.length === 2) {
-            targets = ftNight.ftChosenTargets.map((s) => gameStatePlayers[s]);
+          if (ft.ftChosenTargets && ft.ftChosenTargets.length === 2) {
+            targets = ft.ftChosenTargets.map((s) => gameStatePlayers[s]);
           } else {
             const alivePlayers = gameStatePlayers.filter((p) => p.alive);
             const picks = getRandomItems(
@@ -1832,18 +1837,15 @@
           const y = targets[1] || targets[0];
 
           function setFTResultFt(res) {
-            appendInfoText(
-              ftNight,
-              `${x.name}/${y.name} ${res ? "Yes" : "No"}`
-            );
-            if (!ftNight.evil) ftNight.gameover_text = ftNight.info_text;
+            appendInfoText(ft, `${x.name}/${y.name} ${res ? "Yes" : "No"}`);
+            if (!ft.evil) ft.gameover_text = ft.info_text;
           }
 
-          const realFT = ftNight.role === "Fortune Teller";
-          if (realFT && !ftNight.droisoned && !ftNight.evil) {
+          const realFT = ft.role === "Fortune Teller";
+          if (realFT && !ft.droisoned && !ft.evil) {
             const eitherIsDemon = x.role === "Imp" || y.role === "Imp";
             const eitherIsRedHerring =
-              x.seat === ftNight.red_herring || y.seat === ftNight.red_herring;
+              x.seat === ft.red_herring || y.seat === ft.red_herring;
             const recluseTrigger =
               (x.role === "Recluse" || y.role === "Recluse") && percentTrue(75);
             if (eitherIsDemon || eitherIsRedHerring || recluseTrigger)
@@ -1851,16 +1853,14 @@
             else setFTResultFt(false);
           } else {
             const inFrame =
-              ftNight.frame_map &&
-              (ftNight.frame_map.includes(x.seat) ||
-                ftNight.frame_map.includes(y.seat));
+              ft.frame_map &&
+              (ft.frame_map.includes(x.seat) || ft.frame_map.includes(y.seat));
             setFTResultFt(!!inFrame);
           }
 
           // clear chosen targets so the player must pick again for the next night
-          ftNight.ftChosenTargets = null;
-          if (ftNight.alive)
-            ftNight.actionmodeText = "Who should I check tonight?";
+          ft.ftChosenTargets = null;
+          if (ft.alive) ft.actionmodeText = "Who should I check tonight?";
         }
 
         // if 2 or less players are alive, and a demon is alive, evil wins.
