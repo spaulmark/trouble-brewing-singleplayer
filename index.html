@@ -227,8 +227,16 @@
         border: 2px solid rgba(255, 255, 255, 0.9);
         box-shadow: 0 4px 10px rgba(10, 90, 140, 0.25);
       }
-      /* Fortune Teller uses a different badge (warning) instead of the lightning bolt */
+      /* Fortune Teller uses a different badge (?) instead of the lightning bolt */
       .player-token.action-ready[data-role="Fortune Teller"]::after {
+        content: "❓";
+        font-size: 12px;
+        background: linear-gradient(135deg, #fff5b1, #ffe07a);
+        color: #332200;
+        border-color: rgba(255, 255, 255, 0.9);
+      }
+      /* Monk uses a different badge (?) instead of the lightning bolt */
+      .player-token.action-ready[data-role="Monk"]::after {
         content: "❓";
         font-size: 12px;
         background: linear-gradient(135deg, #fff5b1, #ffe07a);
@@ -1704,10 +1712,28 @@
       function othernights() {
         // TODO: unpoison whoever was poisoned last night, but not The Drunk
         // TODO: poisoner
-        // TODO: monk
+
+        // Monk protection selection
+        let monkSaved = null;
+        const monk = getAppearsAsIfAlive("Monk");
+        if (monk) {
+          const isRealMonk = monk.role === "Monk";
+          // Only a real, sober Monk can protect someone
+          if (isRealMonk && !monk.droisoned && monk.monkChosenTarget !== null) {
+            const target = gameStatePlayers[monk.monkChosenTarget];
+            if (target && target.alive) {
+              monkSaved = monk.monkChosenTarget;
+            }
+          }
+          // Reset chosen target for next night
+          monk.monkChosenTarget = null;
+          if (monk.alive) monk.actionmodeText = "Who should I protect tonight?";
+        }
+
         // TODO: imp
         // TODO: ravenkeeper
         // TODO: undertaker
+
         const undertaker = getAppearsAsIfAlive("Undertaker");
         if (undertaker && previousExecution) {
           // sober undertaker: see the role of the preivous executee
@@ -2016,6 +2042,12 @@
             // chosen targets for the upcoming night (set by player during the day)
             player.ftChosenTargets = null;
           }
+          // Monk: single target protection selector (select one player during day for that night's protection)
+          if (player.role === "Monk" || player.appears_as.role === "Monk") {
+            player.actionmodeText = "Who should I protect tonight?";
+            // chosen target for the upcoming night's protection (set by player during the day)
+            player.monkChosenTarget = null;
+          }
         }
 
         night1();
@@ -2076,6 +2108,7 @@
               else if (seenRole === "Virgin") speech = "Who nominates me?";
               else if (seenRole === "Fortune Teller")
                 speech = "Pick two players";
+              else if (seenRole === "Monk") speech = "Who to protect?";
               else speech = "Who to pick?";
               // ensure center button shows cancel while a actor is selected
               setupCenterButton("Cancel", () => {
@@ -2234,6 +2267,28 @@
                     // need a second pick, keep actor selected
                     displayPlayerCircle(false);
                   }
+                }
+                // Monk: single target protection selection
+                else if (
+                  actor.appears_as.role === "Monk" ||
+                  actor.role === "Monk"
+                ) {
+                  // clicking the actor again is a no-op for Monk
+                  if (currentActor === i) return;
+                  const monkTarget = gameStatePlayers[i].name;
+                  actor.monkChosenTarget = i;
+                  actor.actionmodeText = `Protecting ${monkTarget}`;
+                  // exit action mode after committing the pick
+                  currentActor = null;
+                  if (isActionMode) {
+                    isActionMode = false;
+                    document.body.classList.toggle("action-mode-active", false);
+                    container.classList.toggle("action-mode-active", false);
+                    if (actionModeToggleBtn)
+                      actionModeToggleBtn.textContent = "Action Mode: OFF";
+                  }
+                  setupCenterButton(null, null, false);
+                  displayPlayerCircle(false);
                 }
               }
               return;

@@ -2,8 +2,6 @@ Not Done:
 
 Empath
 
-Fortune Teller
-
 Undertaker
 
 Monk
@@ -27,6 +25,8 @@ Librarian
 Investigator
 
 Chef
+
+Fortune Teller
 
 Virgin
 
