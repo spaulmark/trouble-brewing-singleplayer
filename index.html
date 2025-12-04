@@ -1069,13 +1069,18 @@
         // Only a real, sober Virgin punishes certain nominators
         if (actorIsRealVirgin && !actor.droisoned) {
           if (nominator.role === "Spy") {
-            // Spy has a 50/50 chance of being executed when they nominate the Virgin
-            if (percentTrue(50)) {
-              const nominatorToken = circleContainer.children[nominatorSeat];
-              executePlayer(nominatorToken, nominatorSeat);
-              return true;
+            // If the Spy is claiming outsider, they never die to the Virgin's ability
+            if (nominator.appears_as.type === "outsider") {
+              // Spy survives, nothing happens
+            } else {
+              // Spy has a 50/50 chance of being executed when they nominate the Virgin
+              if (percentTrue(50)) {
+                const nominatorToken = circleContainer.children[nominatorSeat];
+                executePlayer(nominatorToken, nominatorSeat);
+                return true;
+              }
+              // Spy survived the 50/50 — nothing else
             }
-            // Spy survived the 50/50 — nothing else
           } else if (nominator.type === "townsfolk") {
             // execute the nominator immediately (this will handle endgame checks and transition to night)
             const nominatorToken = circleContainer.children[nominatorSeat];
@@ -1222,7 +1227,8 @@
         // TODO: if the poisoner ever dies or catches a starpass, their poisoning is removed.
         let poisoner = getRoleIfInPlay("Poisoner");
         if (poisoner) {
-          // TODO: poison somebody good!
+          // TODO: poison somebody good! maybe more likely to be someone next to the demon
+          // and if it's DEMON - good - EVIL, then you almost certainly want to poison that person.
         }
 
         // picks a random good player and is more likely to pick someone neighboring the demon.
@@ -1636,7 +1642,7 @@
 
           // TODO: calculate the chance of an empath 2 in every game i guess
         }
-        // TODO: fortune teller
+        // fortune teller
         let ft = getAppearAsRoleIfInPlay("Fortune Teller");
         if (ft) {
           // Night 1 Fortune Teller setup and initial check
@@ -1780,6 +1786,8 @@
           // sober empath needs to keep track of who is being framed as evil/good for spy/recluse
         }
         // Fortune Teller nightly checks: process chosen targets (if any) or pick randomly
+
+        // TODO: a fortune teller who picks randomly will never randomly pick the person who died tonight to the imp.
         const ftNight = getAppearsAsIfAlive("Fortune Teller");
         if (ftNight) {
           // determine targets: use chosen targets if provided, otherwise pick 2 random alive players
