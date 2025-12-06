@@ -804,7 +804,22 @@
       function setupCenterButton(text, action, isVisible = true) {
         if (isVisible) {
           centerActionButton.textContent = text;
-          currentCenterAction = action; // Assign the function to our variable
+          // If it's a Cancel button, automatically exit action mode
+          if (text === "Cancel") {
+            currentCenterAction = () => {
+              currentActor = null;
+              isActionMode = false;
+              document.body.classList.toggle("action-mode-active", false);
+              container.classList.toggle("action-mode-active", false);
+              if (actionModeToggleBtn)
+                actionModeToggleBtn.textContent = "Action Mode: OFF";
+              setupCenterButton(null, null, false);
+              displayPlayerCircle(false);
+              if (action) action(); // Call any additional action provided
+            };
+          } else {
+            currentCenterAction = action; // Assign the function to our variable
+          }
           centerActionButton.classList.add("visible");
         } else {
           centerActionButton.classList.remove("visible");
@@ -1713,13 +1728,17 @@
         // TODO: unpoison whoever was poisoned last night, but not The Drunk
         // TODO: poisoner
 
-        // monk
+        // Monk protection selection
         let monkSaved = null;
         const monk = getAppearsAsIfAlive("Monk");
-
-        // TODO: monk records who they saved each night.
-        // their save for the upcoming night is in () brackets
         if (monk) {
+          // Remove pending notation before processing night
+          if (monk.info_text && monk.info_text.includes("(")) {
+            monk.info_text = monk.info_text
+              .replace(/, \([^)]+\)$/, "")
+              .replace(/\([^)]+\)$/, "");
+          }
+
           const isRealMonk = monk.role === "Monk";
           // Only a real, sober Monk can protect someone
           if (isRealMonk && !monk.droisoned && monk.monkChosenTarget !== null) {
@@ -1728,6 +1747,14 @@
               monkSaved = monk.monkChosenTarget;
             }
           }
+
+          // Log the monk's pick for the night (for all monks, including fake ones)
+          if (monk.monkChosenTarget !== null) {
+            const targetName = gameStatePlayers[monk.monkChosenTarget].name;
+            appendInfoText(monk, targetName);
+            if (!monk.evil) monk.gameover_text = monk.info_text;
+          }
+
           // Reset chosen target for next night
           monk.monkChosenTarget = null;
           if (monk.alive) monk.actionmodeText = "Who should I protect tonight?";
@@ -1816,15 +1843,18 @@
         }
         // Fortune Teller nightly checks: process chosen targets (if any) or pick randomly
 
-        // TODO: fortune teller records their upcoming pick in (A/B) brackets
-
         // TODO: a fortune teller who picks randomly will never randomly pick the person who died tonight to the imp.
-        const ft = getAppearsAsIfAlive("Fortune Teller");
-        if (ft) {
+        const ftNight = getAppearsAsIfAlive("Fortune Teller");
+        if (ftNight) {
+          // Remove pending notation before processing night result
+          if (ftNight.info_text && ftNight.info_text.includes(", (")) {
+            ftNight.info_text = ftNight.info_text.replace(/, \([^)]+\)/, "");
+          }
+
           // determine targets: use chosen targets if provided, otherwise pick 2 random alive players
           let targets = [];
-          if (ft.ftChosenTargets && ft.ftChosenTargets.length === 2) {
-            targets = ft.ftChosenTargets.map((s) => gameStatePlayers[s]);
+          if (ftNight.ftChosenTargets && ftNight.ftChosenTargets.length === 2) {
+            targets = ftNight.ftChosenTargets.map((s) => gameStatePlayers[s]);
           } else {
             const alivePlayers = gameStatePlayers.filter((p) => p.alive);
             const picks = getRandomItems(
@@ -1837,15 +1867,18 @@
           const y = targets[1] || targets[0];
 
           function setFTResultFt(res) {
-            appendInfoText(ft, `${x.name}/${y.name} ${res ? "Yes" : "No"}`);
-            if (!ft.evil) ft.gameover_text = ft.info_text;
+            appendInfoText(
+              ftNight,
+              `${x.name}/${y.name} ${res ? "Yes" : "No"}`
+            );
+            if (!ftNight.evil) ftNight.gameover_text = ftNight.info_text;
           }
 
-          const realFT = ft.role === "Fortune Teller";
-          if (realFT && !ft.droisoned && !ft.evil) {
+          const realFT = ftNight.role === "Fortune Teller";
+          if (realFT && !ftNight.droisoned && !ftNight.evil) {
             const eitherIsDemon = x.role === "Imp" || y.role === "Imp";
             const eitherIsRedHerring =
-              x.seat === ft.red_herring || y.seat === ft.red_herring;
+              x.seat === ftNight.red_herring || y.seat === ftNight.red_herring;
             const recluseTrigger =
               (x.role === "Recluse" || y.role === "Recluse") && percentTrue(75);
             if (eitherIsDemon || eitherIsRedHerring || recluseTrigger)
@@ -1853,14 +1886,16 @@
             else setFTResultFt(false);
           } else {
             const inFrame =
-              ft.frame_map &&
-              (ft.frame_map.includes(x.seat) || ft.frame_map.includes(y.seat));
+              ftNight.frame_map &&
+              (ftNight.frame_map.includes(x.seat) ||
+                ftNight.frame_map.includes(y.seat));
             setFTResultFt(!!inFrame);
           }
 
           // clear chosen targets so the player must pick again for the next night
-          ft.ftChosenTargets = null;
-          if (ft.alive) ft.actionmodeText = "Who should I check tonight?";
+          ftNight.ftChosenTargets = null;
+          if (ftNight.alive)
+            ftNight.actionmodeText = "Who should I check tonight?";
         }
 
         // if 2 or less players are alive, and a demon is alive, evil wins.
@@ -2081,7 +2116,9 @@
             player.actionmodeText != null &&
             !player.shotUsed &&
             // Fortune Teller who already has chosen targets for tonight should not show the badge
-            !(player.ftChosenTargets && player.ftChosenTargets.length === 2);
+            !(player.ftChosenTargets && player.ftChosenTargets.length === 2) &&
+            // Monk who already has chosen a target for tonight should not show the badge
+            !(player.monkChosenTarget !== null && player.monkChosenTarget !== undefined);
           // actionReady is specifically for animation during action mode
           const actionReady = isActionMode && hasUnspentAction;
           tokenEl.className = `player-token ${role.type} ${
@@ -2111,11 +2148,7 @@
               else if (seenRole === "Monk") speech = "Who to protect?";
               else speech = "Who to pick?";
               // ensure center button shows cancel while a actor is selected
-              setupCenterButton("Cancel", () => {
-                currentActor = null;
-                setupCenterButton(null, null, false);
-                displayPlayerCircle(false);
-              });
+              setupCenterButton("Cancel");
             } else {
               // prefer actionmodeText (if player is alive and action not used), then fallback to info_text
               speech =
@@ -2168,11 +2201,7 @@
                   actionModeToggleBtn.textContent = "Action Mode: ON";
                 // select this player
                 currentActor = i;
-                setupCenterButton("Cancel", () => {
-                  currentActor = null;
-                  setupCenterButton(null, null, false);
-                  displayPlayerCircle(false);
-                });
+                setupCenterButton("Cancel");
                 displayPlayerCircle(false);
                 return;
               }
@@ -2190,11 +2219,7 @@
                 if (clicked.actionmodeText && !clicked.shotUsed) {
                   currentActor = i;
                   // show cancel button
-                  setupCenterButton("Cancel", () => {
-                    currentActor = null;
-                    setupCenterButton(null, null, false);
-                    displayPlayerCircle(false);
-                  });
+                  setupCenterButton("Cancel");
                   displayPlayerCircle(false);
                 }
                 return;
@@ -2237,17 +2262,42 @@
                   actor.appears_as.role === "Fortune Teller" ||
                   actor.role === "Fortune Teller"
                 ) {
-                  // initialize pending selection store
-                  if (!actor.ftPending) actor.ftPending = [];
+                  // Check if this click is a change to existing choice
+                  if (
+                    actor.ftChosenTargets &&
+                    actor.ftChosenTargets.length === 2
+                  ) {
+                    // Clear the old choice and start fresh
+                    actor.ftChosenTargets = null;
+                    actor.ftPending = [];
+                    // Remove the pending notation from info_text
+                    if (actor.info_text && actor.info_text.includes(", (")) {
+                      actor.info_text = actor.info_text.replace(
+                        /, \([^)]+\)/,
+                        ""
+                      );
+                    }
+                  } else {
+                    // initialize pending selection store
+                    if (!actor.ftPending) actor.ftPending = [];
+                  }
+
                   // ignore duplicate picks
                   if (actor.ftPending.includes(i)) return;
                   actor.ftPending.push(i);
+
                   // if we now have two picks, commit them
                   if (actor.ftPending.length === 2) {
                     actor.ftChosenTargets = [...actor.ftPending];
                     const a = gameStatePlayers[actor.ftChosenTargets[0]].name;
                     const b = gameStatePlayers[actor.ftChosenTargets[1]].name;
                     actor.actionmodeText = `Checking ${a}/${b}`;
+                    // Add pending notation to info_text
+                    if (!actor.info_text) {
+                      actor.info_text = `(${a}/${b})`;
+                    } else {
+                      actor.info_text += `, (${a}/${b})`;
+                    }
                     actor.ftPending = null;
                     // exit action mode after committing the two picks
                     currentActor = null;
@@ -2273,11 +2323,36 @@
                   actor.appears_as.role === "Monk" ||
                   actor.role === "Monk"
                 ) {
-                  // clicking the actor again is a no-op for Monk
+                  // clicking the actor again is a change to existing choice
                   if (currentActor === i) return;
+
+                  // Check if this click is a change to existing choice
+                  if (
+                    actor.monkChosenTarget !== null &&
+                    actor.monkChosenTarget !== undefined
+                  ) {
+                    // Clear the old choice and remove pending notation from info_text
+                    if (actor.info_text && actor.info_text.includes("(")) {
+                      actor.info_text = actor.info_text.replace(
+                        /, \([^)]+\)$/,
+                        ""
+                      ).replace(
+                        /\([^)]+\)$/,
+                        ""
+                      );
+                    }
+                    actor.monkChosenTarget = null;
+                  }
+
                   const monkTarget = gameStatePlayers[i].name;
                   actor.monkChosenTarget = i;
                   actor.actionmodeText = `Protecting ${monkTarget}`;
+                  // Add pending notation to info_text
+                  if (!actor.info_text) {
+                    actor.info_text = `(${monkTarget})`;
+                  } else {
+                    actor.info_text += `, (${monkTarget})`;
+                  }
                   // exit action mode after committing the pick
                   currentActor = null;
                   if (isActionMode) {
