@@ -223,6 +223,14 @@
         color: #332200;
         border-color: rgba(255, 255, 255, 0.9);
       }
+      /* Ravenkeeper uses a different badge (?) instead of the lightning bolt */
+      .player-token.action-ready[data-role="Ravenkeeper"]::after {
+        content: "❓";
+        font-size: 12px;
+        background: linear-gradient(135deg, #fff5b1, #ffe07a);
+        color: #332200;
+        border-color: rgba(255, 255, 255, 0.9);
+      }
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           Helvetica, Arial, sans-serif;
@@ -2012,6 +2020,12 @@
             // chosen target for the upcoming night's protection (set by player during the day)
             player.monkChosenTarget = null;
           }
+          // Ravenkeeper: single target info selector (learn role of chosen player on death)
+          if (player.role === "Ravenkeeper" || player.appears_as.role === "Ravenkeeper") {
+            player.actionmodeText = "Who should I check tonight?";
+            // chosen target for the upcoming night's check (set by player during the day)
+            player.rkChosenTarget = null;
+          }
         }
 
         night1();
@@ -2050,6 +2064,11 @@
             !(
               player.monkChosenTarget !== null &&
               player.monkChosenTarget !== undefined
+            ) &&
+            // Ravenkeeper who already has chosen a target for tonight should not show the badge
+            !(
+              player.rkChosenTarget !== null &&
+              player.rkChosenTarget !== undefined
             );
           // actionReady is specifically for animation during action mode
           const actionReady = isActionMode && hasUnspentAction;
@@ -2078,6 +2097,7 @@
               else if (seenRole === "Fortune Teller")
                 speech = "Pick two players";
               else if (seenRole === "Monk") speech = "Who to protect?";
+              else if (seenRole === "Ravenkeeper") speech = "Who to check?";
               else speech = "Who to pick?";
               // ensure center button shows cancel while a actor is selected
               setupCenterButton("Cancel");
@@ -2276,6 +2296,47 @@
                     actor.info_text = `(${monkTarget})`;
                   } else {
                     actor.info_text += `, (${monkTarget})`;
+                  }
+                  // exit action mode after committing the pick
+                  currentActor = null;
+                  if (isActionMode) {
+                    isActionMode = false;
+                    document.body.classList.toggle("action-mode-active", false);
+                    container.classList.toggle("action-mode-active", false);
+                  }
+                  setupCenterButton(null, null, false);
+                  displayPlayerCircle(false);
+                }
+                // Ravenkeeper: single target info selection
+                else if (
+                  actor.appears_as.role === "Ravenkeeper" ||
+                  actor.role === "Ravenkeeper"
+                ) {
+                  // clicking the actor again is a change to existing choice
+                  if (currentActor === i) return;
+
+                  // Check if this click is a change to existing choice
+                  if (
+                    actor.rkChosenTarget !== null &&
+                    actor.rkChosenTarget !== undefined
+                  ) {
+                    // Clear the old choice and remove pending notation from info_text
+                    if (actor.info_text && actor.info_text.includes("(")) {
+                      actor.info_text = actor.info_text
+                        .replace(/, \([^)]+\)$/, "")
+                        .replace(/\([^)]+\)$/, "");
+                    }
+                    actor.rkChosenTarget = null;
+                  }
+
+                  const rkTarget = gameStatePlayers[i].name;
+                  actor.rkChosenTarget = i;
+                  actor.actionmodeText = `Checking ${rkTarget}`;
+                  // Add pending notation to info_text
+                  if (!actor.info_text) {
+                    actor.info_text = `(${rkTarget})`;
+                  } else {
+                    actor.info_text += `, (${rkTarget})`;
                   }
                   // exit action mode after committing the pick
                   currentActor = null;
