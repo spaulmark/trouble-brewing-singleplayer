@@ -6,7 +6,7 @@ Undertaker
 
 Monk -- needs to protect a player
 
-Ravenkeeper
+Ravenkeeper -- needs to learn a role on nightkill
 
 Soldier
 

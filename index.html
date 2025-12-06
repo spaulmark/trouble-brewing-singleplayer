@@ -2021,7 +2021,10 @@
             player.monkChosenTarget = null;
           }
           // Ravenkeeper: single target info selector (learn role of chosen player on death)
-          if (player.role === "Ravenkeeper" || player.appears_as.role === "Ravenkeeper") {
+          if (
+            player.role === "Ravenkeeper" ||
+            player.appears_as.role === "Ravenkeeper"
+          ) {
             player.actionmodeText = "Who should I check tonight?";
             // chosen target for the upcoming night's check (set by player during the day)
             player.rkChosenTarget = null;
