@@ -4,7 +4,7 @@ Empath
 
 Undertaker
 
-Monk
+Monk -- needs to protect a player
 
 Ravenkeeper
 
