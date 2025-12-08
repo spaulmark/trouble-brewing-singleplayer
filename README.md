@@ -4,11 +4,7 @@ Empath
 
 Undertaker
 
-Monk -- needs to protect a player
-
 Ravenkeeper -- needs to learn a role on nightkill
-
-Soldier
 
 Mayor -- still needs the someone else might die property
 
@@ -28,9 +24,13 @@ Chef
 
 Fortune Teller
 
+Monk
+
 Virgin
 
 Slayer
+
+Soldier
 
 Saint
 

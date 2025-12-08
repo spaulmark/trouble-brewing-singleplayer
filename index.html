@@ -697,12 +697,7 @@
         previous_info: [] // some array of useful info for me...?
       }*/
       ];
-      /*
-      role template:
-      fortune teller: {
-      default_choicebubble: "Who should I pick tonight?"
-      }
-      */
+
       killModeToggleBtn.addEventListener("click", () => toggleKillModeBtn());
 
       // ui state variables
@@ -812,6 +807,10 @@
         updatePhaseDisplay();
         othernights();
         setTimeout(() => {
+          // Check if the game ended during othernights (e.g., final 4 reaching <= 2 alive with demon)
+          if (gameEnded) {
+            return;
+          }
           currentPhase = "day";
           canExecutePlayer = true;
           updatePhaseDisplay();
@@ -829,13 +828,33 @@
         playerToken.classList.add("dead");
       }
 
+      function checkGameEndConditions() {
+        const alivePlayers = gameStatePlayers.filter((p) => p.alive);
+
+        // if all remaining alive players are evil, evil wins
+        const allEvilAlive = alivePlayers.every((p) => p.evil);
+        if (allEvilAlive && alivePlayers.length > 0) {
+          endGame(false);
+          return true;
+        }
+
+        // if 2 or less players are alive, and a demon is alive, evil wins.
+        if (alivePlayers.length <= 2) {
+          const demon = alivePlayers.find((p) => p.type === "demon");
+          if (demon) {
+            endGame(false);
+            return true;
+          }
+        }
+
+        return false;
+      }
+
       function starpass() {
         // TODO: this
         // if a scarlet woman is alive + 5+ alive you pass to the scarlet woman
         // otherwise you pass to a random minion
       }
-
-      // TODO: TPK evil wincon, do this after nightkills
 
       function executePlayer(playerToken, id) {
         // execution is not allowed during night phase
@@ -890,14 +909,9 @@
             return;
           }
 
-          // if 2 or less players are alive, and a demon is alive, evil wins.
-          const alivePlayers = gameStatePlayers.filter((p) => p.alive);
-          if (alivePlayers.length <= 2) {
-            const demon = alivePlayers.find((p) => p.type === "demon");
-            if (demon) {
-              endGame(false);
-              return;
-            }
+          // Check for all evil win or demon win conditions
+          if (checkGameEndConditions()) {
+            return;
           }
         }
         if (isKillMode) toggleKillModeBtn();
@@ -991,13 +1005,8 @@
 
         // after shot, check for trivial endgame conditions similar to execution
         if (killed) {
-          const alivePlayers = gameStatePlayers.filter((p) => p.alive);
-          if (alivePlayers.length <= 2) {
-            const demon = alivePlayers.find((p) => p.type === "demon");
-            if (demon) {
-              endGame(false);
-              return true;
-            }
+          if (checkGameEndConditions()) {
+            return true;
           }
         }
 
@@ -1069,6 +1078,14 @@
           }
         }
         return null;
+      }
+
+      function getRoleIfAlive(role) {
+        for (player of gameStatePlayers) {
+          if (player.role === role && player.alive) {
+            return player;
+          }
+        }
       }
 
       function getRoleIfHealthy(role) {
@@ -1646,28 +1663,51 @@
             if (!ft.evil) ft.gameover_text = ft.info_text;
           }
 
-          const shooterIsRealFT = ft.role === "Fortune Teller";
+          const actorIsRealFT = ft.role === "Fortune Teller";
+          const recluse = "Recluse";
 
-          if (shooterIsRealFT && !ft.droisoned && !ft.evil) {
+          if (actorIsRealFT && !ft.droisoned && !ft.evil) {
             // healthy real FT: Yes if either is a demon or the red herring
             const eitherIsDemon = x.role === "Imp" || y.role === "Imp";
             const eitherIsRedHerring =
               x.seat === ft.red_herring || y.seat === ft.red_herring;
             // recluse special: 75% chance to trigger Yes if either is Recluse
             const recluseTrigger =
-              (x.role === "Recluse" || y.role === "Recluse") && percentTrue(75);
+              ((x.role === recluse && !x.droisoned) ||
+                (y.role === recluse && !y.droisoned)) &&
+              percentTrue(75);
             if (eitherIsDemon || eitherIsRedHerring || recluseTrigger)
               setFTResult(true);
             else setFTResult(false);
           } else {
             // droisoned or evil FT: they learn YES if either seat is in the frame_map
+
+            // TODO: however for evil FT recluse behavior
+            // if my ally is bluffing recluse, 75% to learn a YES
+            // if i have spy and i am checking a real recluse, 75% to learn a YES
+
+            // so basically i care not if they're poisoned, just if they appear as recluse
+
+            if (ft.evil) {
+              const eitherIsRecluseClaim =
+                x.role === recluse ||
+                x.appears_as === recluse ||
+                y.role === recluse ||
+                y.appears_as === recluse;
+              //
+            }
+
+            // TODO: the todo above
+
             const inFrame =
               ft.frame_map &&
               (ft.frame_map.includes(x.seat) || ft.frame_map.includes(y.seat));
+
             setFTResult(!!inFrame);
           }
         }
       }
+      // TODO: kill all actionmodetext
 
       function othernights() {
         // TODO: unpoison whoever was poisoned last night, but not The Drunk
@@ -1705,8 +1745,46 @@
           if (monk.alive) monk.actionmodeText = "Who should I protect tonight?";
         }
 
-        // TODO: imp
+        // Imp night kill
+        const imp = getRoleIfAlive("Imp");
+        let impKilledTonight = null;
+        if (imp && imp.alive) {
+          // Pick a random good (non-evil) player to kill
+          const goodPlayers = gameStatePlayers.filter(
+            (p) => p.alive && !p.evil && p.seat !== imp.seat
+          );
+          const evilPlayers = gameStatePlayers.filter(
+            (p) => p.alive && p.evil && p.seat !== imp.seat
+          );
+
+          const killTargets =
+            goodPlayers.length === 0 ? evilPlayers : goodPlayers;
+
+          const target = getRandomItem(killTargets);
+
+          // monk and soldier targets can't die
+          let targetDies = true;
+
+          if (target.role === "Soldier" && !target.droisoned) {
+            targetDies = false;
+          }
+          if (monkSaved && monksaved.seat === target.seat) {
+            targetDies = false;
+          }
+
+          // TODO: if its the mayor, it always bounces the first time, then 1/n bounces the next time
+
+          if (targetDies) {
+            const targetToken = circleContainer.children[target.seat];
+            killPlayer(targetToken, target.seat);
+          }
+        }
+
         // TODO: ravenkeeper
+        // you only get the ravenkeeper if he's dead OMEGALUL
+
+        // TODO: if the ravenkeeper's person they will pick dies, they get a ? icon again
+
         // TODO: undertaker
 
         const undertaker = getAppearsAsIfAlive("Undertaker");
@@ -1838,14 +1916,9 @@
           if (ft.alive) ft.actionmodeText = "Who should I check tonight?";
         }
 
-        // if 2 or less players are alive, and a demon is alive, evil wins.
-        const alivePlayers = gameStatePlayers.filter((p) => p.alive);
-        if (alivePlayers.length <= 2) {
-          const demon = alivePlayers.find((p) => p.type === "demon");
-          if (demon) {
-            endGame(false);
-            return;
-          }
+        // Check for all evil win or demon win conditions
+        if (checkGameEndConditions()) {
+          return;
         }
       }
 
