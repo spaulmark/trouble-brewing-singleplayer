@@ -99,6 +99,11 @@
         cursor: pointer;
       }
 
+      /* When in action mode, allow cursor pointer even for dead players */
+      body.action-mode-active .player-token.dead:hover {
+        cursor: pointer;
+      }
+
       body.kill-mode-active #kill-mode-toggle {
         background-color: var(--primary-color);
         color: white;
@@ -1802,8 +1807,6 @@
           //TODO: the raven keeper. can be tricked by spy and recluse. droisoned learns false info.
           console.log("That raven keeper got hit");
         }
-        // you only get the ravenkeeper if he's dead OMEGALUL
-
         // TODO: if the ravenkeeper's person they will pick dies, they get a ? icon again
 
         // TODO: undertaker
@@ -2260,11 +2263,13 @@
               // only during day
               if (currentPhase !== "day") return;
 
-              if (!clicked.alive) return;
-
               // if we don't currently have a actor selected, clicking a actor selects them
               if (currentActor === null) {
-                if (clicked.actionmodeText && !clicked.shotUsed) {
+                if (
+                  clicked.actionmodeText &&
+                  !clicked.shotUsed &&
+                  clicked.alive
+                ) {
                   currentActor = i;
                   // show cancel button
                   setupCenterButton("Cancel");
@@ -2284,6 +2289,8 @@
                 ) {
                   // clicking the actor again is a no-op for Slayer
                   if (currentActor === i) return;
+                  // Slayer can only target alive players
+                  if (!clicked.alive) return;
                   const ended = slayerShoot(currentActor, i);
                   if (!ended) {
                     currentActor = null;
@@ -2298,6 +2305,8 @@
                 ) {
                   // clicking the actor again is a no-op for Virgin
                   if (currentActor === i) return;
+                  // Virgin can only target alive players
+                  if (!clicked.alive) return;
                   const ended = virginNominate(currentActor, i);
                   if (!ended) {
                     currentActor = null;
@@ -2306,6 +2315,7 @@
                   }
                 }
                 // Fortune Teller: select two different targets during the day to set up the night's check
+                // Fortune Teller CAN check dead players
                 else if (
                   actor.appears_as.role === "Fortune Teller" ||
                   actor.role === "Fortune Teller"
@@ -2371,6 +2381,8 @@
                 ) {
                   // clicking the actor again is a change to existing choice
                   if (currentActor === i) return;
+                  // Monk can only protect alive players
+                  if (!clicked.alive) return;
 
                   // Check if this click is a change to existing choice
                   if (
