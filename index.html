@@ -1777,10 +1777,17 @@
           if (targetDies) {
             const targetToken = circleContainer.children[target.seat];
             killPlayer(targetToken, target.seat);
+            impKilledTonight = target;
           }
         }
 
         // TODO: ravenkeeper
+        const rk = getRoleIfInPlay("Ravenkeeper");
+        console.log(impKilledTonight);
+        if (impKilledTonight && rk.seat === impKilledTonight.seat) {
+          //TODO: the raven keeper. can be tricked by spy and recluse. droisoned learns false info.
+          console.log("That raven keeper got hit");
+        }
         // you only get the ravenkeeper if he's dead OMEGALUL
 
         // TODO: if the ravenkeeper's person they will pick dies, they get a ? icon again
