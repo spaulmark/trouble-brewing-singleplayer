@@ -708,6 +708,8 @@
       let gameEnded = false;
       // when a slayer (or false-slayer) is selected to act, store their seat
       let currentActor = null;
+      // track deaths that should appear visually at day start
+      let deferredDeaths = [];
 
       function toggleKillModeBtn() {
         // Turning on kill-mode will turn off action-mode
@@ -805,12 +807,21 @@
         canExecutePlayer = false; // No more executions
         phaseNumber++;
         updatePhaseDisplay();
+        deferredDeaths = []; // Reset deferred deaths for this night
         othernights();
         setTimeout(() => {
           // Check if the game ended during othernights (e.g., final 4 reaching <= 2 alive with demon)
           if (gameEnded) {
             return;
           }
+          // Apply visual updates for night kills when day starts
+          deferredDeaths.forEach((playerSeat) => {
+            const playerToken = circleContainer.children[playerSeat];
+            if (playerToken) {
+              playerToken.classList.add("dead");
+            }
+          });
+          deferredDeaths = [];
           currentPhase = "day";
           canExecutePlayer = true;
           updatePhaseDisplay();
@@ -822,10 +833,13 @@
         }, nightPhaseMS);
       }
 
-      function killPlayer(playerToken, id) {
+      function killPlayer(playerToken, id, delayVisual = false) {
         const player = gameStatePlayers[id];
         player.alive = false;
-        playerToken.classList.add("dead");
+        if (!delayVisual) {
+          playerToken.classList.add("dead");
+        }
+        return id; // return the id for deferred visual updates
       }
 
       function checkGameEndConditions() {
@@ -1776,15 +1790,15 @@
 
           if (targetDies) {
             const targetToken = circleContainer.children[target.seat];
-            killPlayer(targetToken, target.seat);
+            killPlayer(targetToken, target.seat, true); // true = delay visual
+            deferredDeaths.push(target.seat);
             impKilledTonight = target;
           }
         }
 
         // TODO: ravenkeeper
         const rk = getRoleIfInPlay("Ravenkeeper");
-        console.log(impKilledTonight);
-        if (impKilledTonight && rk.seat === impKilledTonight.seat) {
+        if (impKilledTonight && rk && rk.seat === impKilledTonight.seat) {
           //TODO: the raven keeper. can be tricked by spy and recluse. droisoned learns false info.
           console.log("That raven keeper got hit");
         }
@@ -1942,6 +1956,7 @@
         document.body.classList.toggle("action-mode-active", false);
         container.classList.toggle("action-mode-active", false);
         canExecutePlayer = true;
+        deferredDeaths = [];
         phaseDisplay.classList.remove("good-wins", "evil-wins");
 
         setupCenterButton(null, null, false);
