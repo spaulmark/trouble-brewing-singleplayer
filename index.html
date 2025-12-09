@@ -1827,7 +1827,6 @@
 
           if (soberUndertaker) {
             // sober undertaker can get trolled by recluse and spy, otherwise learn good info
-            // TODO: a spy that got executed by a virgin should always trick an undertaker
             if (previousExecution.role === "Spy" && percentTrue(60)) {
               confirmEvilPlayer = true;
             } else if (
@@ -2204,12 +2203,7 @@
               setupCenterButton("Cancel");
             } else {
               // prefer actionmodeText (if player is alive and action not used), then fallback to info_text
-              speech =
-                player.alive &&
-                player.actionmodeText != null &&
-                !player.shotUsed
-                  ? player.actionmodeText
-                  : player.info_text || "";
+              speech = player.info_text || "";
             }
           } else {
             speech = player.info_text || "";
