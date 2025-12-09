@@ -2031,18 +2031,23 @@
 
         if (selectedMinions.length === 3) {
           // if there is spy, you get another free bluff! yay
-          if (spyInPlay) {
-            demonBluffs.push(unusedBluffs[0]);
-          } else {
-            // otherwise you just have to randomly claim something.
-            const roleToClaim = getRandomItems(
-              [...characters.townsfolk, ...characters.outsiders].filter(
-                (role) => role.name !== "Drunk"
-              ),
-              1
-            ).selected[0];
-            demonBluffs.push(roleToClaim);
-          }
+
+          // i would have to rework a lot of code to make double claims work so honestly nah.
+          // BOTC as a whole is not balanced around one person having all the info anyways
+          // so i see this as acceptable for this game.
+
+          // if (spyInPlay) {
+          demonBluffs.push(unusedBluffs[0]);
+          // } else {
+          //   // otherwise you just have to randomly claim something.
+          //   const roleToClaim = getRandomItems(
+          //     [...characters.townsfolk, ...characters.outsiders].filter(
+          //       (role) => role.name !== "Drunk"
+          //     ),
+          //     1
+          //   ).selected[0];
+          //   demonBluffs.push(roleToClaim);
+          // }
         }
         const ingamePlayers = shuffleArray(playerNames.slice(0, playerCount));
 
@@ -2202,7 +2207,7 @@
               // ensure center button shows cancel while a actor is selected
               setupCenterButton("Cancel");
             } else {
-              // prefer actionmodeText (if player is alive and action not used), then fallback to info_text
+              // prefer actionmodeText (if player is alive and action not used), then fallback to  info_text
               speech = player.info_text || "";
             }
           } else {
