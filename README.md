@@ -6,7 +6,7 @@ Undertaker
 
 Poisoner
 
-Imp
+Imp -- needs smarter nightkills
 
 ------------------ Done:
 

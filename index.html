@@ -1891,7 +1891,6 @@
           rk.info_text = `${seenPlayer} ${seenRole}`;
           if (rk.role === "Ravenkeeper") rk.gameover_text = rk.info_text;
         }
-        // TODO: if the ravenkeeper's person they will pick dies, they get a ? icon again
 
         // TODO: undertaker
 
@@ -2293,6 +2292,17 @@
             speech = player.info_text || "";
           }
 
+          // Add warning if Ravenkeeper chose a dead target
+          if (
+            player.role === "Ravenkeeper" &&
+            player.rkChosenTarget !== null &&
+            player.rkChosenTarget !== undefined &&
+            !gameStatePlayers[player.rkChosenTarget].alive &&
+            !grim_reveal
+          ) {
+            speech += " ⁉️";
+          }
+
           tokenEl.innerHTML = `
                     <div class="speech-bubble${
                       speech ? " visible" : ""
@@ -2503,18 +2513,11 @@
                   // clicking the actor again is a change to existing choice
                   if (currentActor === i) return;
 
-                  // Check if this click is a change to existing choice
-                  if (
-                    actor.rkChosenTarget !== null &&
-                    actor.rkChosenTarget !== undefined
-                  ) {
-                    // Clear the old choice and remove pending notation from info_text
-                    if (actor.info_text && actor.info_text.includes("(")) {
-                      actor.info_text = actor.info_text
-                        .replace(/, \([^)]+\)$/, "")
-                        .replace(/\([^)]+\)$/, "");
-                    }
-                    actor.rkChosenTarget = null;
+                  // Remove any existing pending notation from info_text (Ravenkeeper only tracks one target at a time)
+                  if (actor.info_text && actor.info_text.includes("(")) {
+                    actor.info_text = actor.info_text
+                      .replace(/, \([^)]+\)$/, "")
+                      .replace(/\([^)]+\)$/, "");
                   }
 
                   const rkTarget = gameStatePlayers[i].name;
