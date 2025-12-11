@@ -4,8 +4,6 @@ Empath
 
 Undertaker
 
-Ravenkeeper -- needs to learn a role on nightkill
-
 Mayor -- still needs the someone else might die property
 
 Poisoner
@@ -25,6 +23,8 @@ Chef
 Fortune Teller
 
 Monk
+
+Ravenkeeper
 
 Virgin
 

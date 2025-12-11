@@ -1801,11 +1801,42 @@
           }
         }
 
-        // TODO: ravenkeeper
         const rk = getRoleIfInPlay("Ravenkeeper");
         if (impKilledTonight && rk && rk.seat === impKilledTonight.seat) {
-          //TODO: the raven keeper. can be tricked by spy and recluse. droisoned learns false info.
-          console.log("That raven keeper got hit");
+          // if ravenkeeper has no chosen target pick a random one from living ppl, not yourself.
+          if (!rk.rkChosenTarget) {
+            const livingPlayers = gameStatePlayers.filter(
+              (p) => p.alive && p.seat !== rk.seat
+            );
+            rk.rkChosenTarget = getRandomItem(livingPlayers).seat;
+          }
+          const rkTarget = gameStatePlayers[rk.rkChosenTarget];
+
+          const soberGoodRk = !rk.droisoned && !rk.evil;
+
+          const trickedBySpy = rkTarget.role === "Spy" && percentTrue(50);
+          const trickedByRecluse =
+            rkTarget.role === "Recluse" && percentTrue(50);
+
+          let seenRole;
+          const seenPlayer = rkTarget.name;
+
+          if (soberGoodRk && !trickedBySpy && !trickedByRecluse) {
+            seenRole = rkTarget.role;
+          } else {
+            // learn an evil/Drunk player's bluff
+            if (rkTarget.evil || rkTarget.role === "Drunk") {
+              seenRole = rkTarget.appears_as.role;
+            } else {
+              // frame a good player as a random evil/drunk
+              const possibleLies = ["Poisoner", "Scarlet Woman", "Imp", "Spy"];
+              if (checkIsBaronPossible()) possibleLies.push("Baron");
+              if (rkTarget.type === "Townsfolk") possibleLies.push("Drunk");
+              seenrole = getRandomItem(possibleLies);
+            }
+          }
+          rk.info_text = `${seenPlayer} ${seenRole}`;
+          if (rk.role === "Ravenkeeper") rk.gameover_text = rk.info_text;
         }
         // TODO: if the ravenkeeper's person they will pick dies, they get a ? icon again
 
@@ -1957,6 +1988,11 @@
         // make sure any visual active classes are cleared from body/container
         document.body.classList.toggle("action-mode-active", false);
         container.classList.toggle("action-mode-active", false);
+        isKillMode = false;
+        document.body.classList.remove("kill-mode-active");
+        container.classList.remove("kill-mode-active");
+        killModeToggleBtn.textContent = "Execute Mode: OFF";
+        currentPhase = "day";
         canExecutePlayer = true;
         deferredDeaths = [];
         phaseDisplay.classList.remove("good-wins", "evil-wins");
