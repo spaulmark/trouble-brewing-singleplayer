@@ -2335,7 +2335,12 @@
             player.rkChosenTarget !== undefined
               ? gameStatePlayers[player.rkChosenTarget]
               : null;
-          if (rkSeesAsRavenkeeper && rkTarget && !rkTarget.alive && !grim_reveal) {
+          if (
+            rkSeesAsRavenkeeper &&
+            rkTarget &&
+            !rkTarget.alive &&
+            !grim_reveal
+          ) {
             speech += " ⁉️";
           }
 
