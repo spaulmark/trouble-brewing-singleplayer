@@ -1725,7 +1725,6 @@
           }
         }
       }
-      // TODO: kill all actionmodetext
 
       function othernights() {
         // TODO: unpoison whoever was poisoned last night, but not The Drunk
@@ -1824,13 +1823,14 @@
             targetDies = false;
           }
 
-          // Mayor protection mechanic
+          // Mayor bounce
           if (target.role === "Mayor" && !target.droisoned && targetDies) {
             target.mayorAttackCount = target.mayorAttackCount || 0;
             target.mayorAttackCount++;
 
             const n = target.mayorAttackCount;
-            const protectionTriggers = n === 1 || percentTrue(100 / n);
+            // first time: always bounce. 2nd time: 33%. 3rd time, 25%. Nth time, 1/n%
+            const protectionTriggers = n === 1 || percentTrue(100 / (n + 1));
 
             if (protectionTriggers) {
               targetDies = false;
@@ -1839,8 +1839,40 @@
                 (p) => p.seat !== target.seat && p.alive
               );
 
+              // Prioritize less useful roles for the bounce
+              const lessUsefulRoles = [
+                "Washerwoman",
+                "Librarian",
+                "Investigator",
+                "Chef",
+                "Ravenkeeper",
+                "Slayer",
+                "Saint",
+                "Butler",
+                "Recluse",
+                "Drunk",
+              ];
+
+              // Filter to roles that qualify for the shortlist
+              const shortlistVictims = otherGoodPlayers.filter((p) => {
+                const role = p.role;
+                if (!lessUsefulRoles.includes(role)) return false;
+
+                // Additional conditions for specific roles
+                if (role === "Ravenkeeper" && p.droisoned) return false;
+                if (role === "Slayer" && !p.shotUsed) return false; // Only if ability is spent
+                if (role === "Drunk" && p.appears_as.role === "Ravenkeeper")
+                  return false; // Skip drunk appearing as RK
+
+                return true;
+              });
+
               let alternateVictim = null;
-              if (otherGoodPlayers.length > 0) {
+
+              // Try shortlist first, then all good players, then minions
+              if (shortlistVictims.length > 0) {
+                alternateVictim = getRandomItem(shortlistVictims);
+              } else if (otherGoodPlayers.length > 0) {
                 alternateVictim = getRandomItem(otherGoodPlayers);
               } else {
                 // If no good players available, kill a random minion instead
