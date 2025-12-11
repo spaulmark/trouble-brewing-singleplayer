@@ -1742,6 +1742,25 @@
               .replace(/\([^)]+\)$/, "");
           }
 
+          // If no target is set, auto-select a random living player (excluding the Monk)
+          if (
+            monk.monkChosenTarget === null ||
+            monk.monkChosenTarget === undefined
+          ) {
+            const livingOthers = gameStatePlayers.filter(
+              (p) => p.alive && p.seat !== monk.seat
+            );
+            const pool =
+              livingOthers.length > 0
+                ? livingOthers
+                : gameStatePlayers.filter((p) => p.seat !== monk.seat);
+            if (pool.length > 0) {
+              const autoPick = getRandomItem(pool);
+              monk.monkChosenTarget = autoPick.seat;
+              monk.actionmodeText = `Protecting ${autoPick.name}`;
+            }
+          }
+
           const isRealMonk = monk.role === "Monk";
           // Only a real, sober Monk can protect someone
           if (isRealMonk && !monk.droisoned && monk.monkChosenTarget !== null) {
@@ -1758,9 +1777,24 @@
             if (!monk.evil) monk.gameover_text = monk.info_text;
           }
 
-          // Reset chosen target for next night
-          monk.monkChosenTarget = null;
-          if (monk.alive) monk.actionmodeText = "Who should I protect tonight?";
+          // Do NOT reset chosen target; keep persisting the selection night-to-night
+          if (monk.alive && monk.monkChosenTarget !== null) {
+            const tgtName = gameStatePlayers[monk.monkChosenTarget].name;
+            monk.actionmodeText = `Protecting ${tgtName}`;
+            // ensure pending notation reflects current target
+            if (monk.info_text && monk.info_text.includes("(")) {
+              monk.info_text = monk.info_text
+                .replace(/, \([^)]+\)$/, "")
+                .replace(/\([^)]+\)$/, "");
+            }
+            if (!monk.info_text) {
+              monk.info_text = `(${tgtName})`;
+            } else {
+              monk.info_text += `, (${tgtName})`;
+            }
+          } else if (monk.alive) {
+            monk.actionmodeText = "Who should I protect tonight?";
+          }
         }
 
         // Imp night kill
@@ -2292,12 +2326,32 @@
             speech = player.info_text || "";
           }
 
-          // Add warning if Ravenkeeper chose a dead target
-          if (
-            player.role === "Ravenkeeper" &&
+          // Add warning if Ravenkeeper (real or fake) chose a dead target
+          const rkSeesAsRavenkeeper =
+            player.role === "Ravenkeeper" ||
+            player.appears_as.role === "Ravenkeeper";
+          const rkTarget =
             player.rkChosenTarget !== null &&
-            player.rkChosenTarget !== undefined &&
-            !gameStatePlayers[player.rkChosenTarget].alive &&
+            player.rkChosenTarget !== undefined
+              ? gameStatePlayers[player.rkChosenTarget]
+              : null;
+          if (rkSeesAsRavenkeeper && rkTarget && !rkTarget.alive && !grim_reveal) {
+            speech += " ⁉️";
+          }
+
+          // Add warning if living Monk (real or fake) is protecting a dead player
+          const monkSeesAsMonk =
+            player.role === "Monk" || player.appears_as.role === "Monk";
+          const monkTarget =
+            player.monkChosenTarget !== null &&
+            player.monkChosenTarget !== undefined
+              ? gameStatePlayers[player.monkChosenTarget]
+              : null;
+          if (
+            monkSeesAsMonk &&
+            player.alive &&
+            monkTarget &&
+            !monkTarget.alive &&
             !grim_reveal
           ) {
             speech += " ⁉️";
@@ -2469,8 +2523,6 @@
                 ) {
                   // clicking the actor again is a change to existing choice
                   if (currentActor === i) return;
-                  // Monk can only protect alive players
-                  if (!clicked.alive) return;
 
                   // Check if this click is a change to existing choice
                   if (
