@@ -972,6 +972,7 @@
         } else {
           // real slayer
           shooter.gameover_text = shooter.info_text;
+          markPoisonedInfoIfApplicable(shooter);
           if (
             !shooter.droisoned &&
             (target.role === "Imp" || target.role === "Recluse")
@@ -1049,7 +1050,10 @@
         actor.actionmodeText = null;
         const nominationText = `${nominator.name} nominated me`;
         actor.info_text = nominationText;
-        if (actor.role === "Virgin") actor.gameover_text = nominationText;
+        if (actor.role === "Virgin") {
+          actor.gameover_text = nominationText;
+          markPoisonedInfoIfApplicable(actor);
+        }
 
         // Exit action mode immediately after acting
         if (isActionMode) {
@@ -1183,12 +1187,28 @@
         return gameStatePlayers.filter((p) => p.type === "outsider");
       }
 
-      function appendInfoText(player, text) {
+      function appendInfoText(player, text, poisoned = false) {
         if (!player.info_text) {
           player.info_text = text;
         } else {
           player.info_text += `, ${text}`;
         }
+        // Track per-entry poisoning for accurate gameover tagging
+        if (!player.info_log) player.info_log = [];
+        player.info_log.push({ text, poisoned });
+      }
+
+      function rebuildGameoverFromInfoLog(player) {
+        if (!player || !player.info_log || player.info_log.length === 0) {
+          player.gameover_text = player.info_text || player.gameover_text || "";
+          return;
+        }
+        const parts = player.info_log.map(({ text, poisoned }) =>
+          poisoned && !player.evil && player.role !== "Drunk"
+            ? `${text} 🧪`
+            : text
+        );
+        player.gameover_text = parts.join(", ");
       }
 
       function checkIsBaronPossible() {
@@ -1204,6 +1224,23 @@
           player.previous_info = [info];
         } else {
           player.previous_info.push(info);
+        }
+      }
+
+      // If a good, non-Drunk player learned/used info while droisoned,
+      // add a 🧪 tag next to their info in gameover_text.
+      function markPoisonedInfoIfApplicable(player) {
+        if (
+          player &&
+          player.droisoned &&
+          !player.evil &&
+          player.role !== "Drunk"
+        ) {
+          if (!player.gameover_text)
+            player.gameover_text = player.info_text || "";
+          if (player.gameover_text && !player.gameover_text.includes("🧪")) {
+            player.gameover_text = `${player.gameover_text} 🧪`;
+          }
         }
       }
 
@@ -1237,6 +1274,7 @@
           );
           if (livingOthers.length > 0) {
             const target = getRandomItem(livingOthers);
+            console.log("Poisoner hit", target.name);
             // If target is Drunk, they are already permanently droisoned; picking them does nothing
             if (target.role !== "Drunk") {
               target.droisoned = true;
@@ -1367,7 +1405,10 @@
             order ? wrong.name : correct.name
           } ${seenRole}`;
           washerwoman.info_text = text;
-          if (!washerwoman.evil) washerwoman.gameover_text = text;
+          if (!washerwoman.evil) {
+            washerwoman.gameover_text = text;
+            markPoisonedInfoIfApplicable(washerwoman);
+          }
         }
         // librarian
         let librarian = getAppearAsRoleIfInPlay("Librarian");
@@ -1506,7 +1547,10 @@
               order ? wrong.name : correct.name
             } ${seenRole}`;
           }
-          if (!librarian.evil) librarian.gameover_text = text;
+          if (!librarian.evil) {
+            librarian.gameover_text = text;
+            markPoisonedInfoIfApplicable(librarian);
+          }
           librarian.info_text = text;
         }
 
@@ -1605,7 +1649,10 @@
           text = `${order ? correct.name : wrong.name}/${
             order ? wrong.name : correct.name
           } ${seenRole}`;
-          if (!invest.evil) invest.gameover_text = text;
+          if (!invest.evil) {
+            invest.gameover_text = text;
+            markPoisonedInfoIfApplicable(invest);
+          }
           invest.info_text = text;
         }
         // chef
@@ -1637,6 +1684,7 @@
           } else {
             // a good chef learns the truth
             chef.gameover_text = `${returnedEvilPairs}`;
+            markPoisonedInfoIfApplicable(chef);
           }
           chef.info_text = `${returnedEvilPairs}`;
         }
@@ -1691,7 +1739,10 @@
           // Helper to set result
           function setFTResult(res) {
             ft.info_text = `${x.name}/${y.name} ${res ? "Yes" : "No"}`;
-            if (!ft.evil) ft.gameover_text = ft.info_text;
+            if (!ft.evil) {
+              ft.gameover_text = ft.info_text;
+              markPoisonedInfoIfApplicable(ft);
+            }
           }
 
           const actorIsRealFT = ft.role === "Fortune Teller";
@@ -1761,6 +1812,7 @@
           );
           if (livingOthers.length > 0) {
             const target = getRandomItem(livingOthers);
+            console.log("Poisoner hit", target.name);
             if (target.role !== "Drunk") {
               target.droisoned = true;
               poisoner.previousPoisonTarget = target.seat;
@@ -1813,8 +1865,12 @@
           // Log the monk's pick for the night (for all monks, including fake ones)
           if (monk.monkChosenTarget !== null) {
             const targetName = gameStatePlayers[monk.monkChosenTarget].name;
-            appendInfoText(monk, targetName);
-            if (!monk.evil) monk.gameover_text = monk.info_text;
+            appendInfoText(monk, targetName, !!monk.droisoned);
+            if (!monk.evil) {
+              rebuildGameoverFromInfoLog(monk);
+              // Monk tracks their pick; if they were droisoned this night, mark it
+              // (Handled in rebuild with per-entry tagging)
+            }
           }
 
           // Do NOT reset chosen target; keep persisting the selection night-to-night
@@ -1955,6 +2011,13 @@
 
           if (targetDies) {
             const targetToken = circleContainer.children[target.seat];
+            // Soldier/Mayor who die while poisoned: mark as poisonkilled
+            if (
+              (target.role === "Soldier" || target.role === "Mayor") &&
+              target.droisoned
+            ) {
+              target.gameover_text = "I was Poisonkilled 🧪";
+            }
             killPlayer(targetToken, target.seat, true); // true = delay visual
             deferredDeaths.push(target.seat);
             impKilledTonight = target;
@@ -1996,7 +2059,11 @@
             }
           }
           rk.info_text = `${seenPlayer} ${seenRole}`;
-          if (rk.role === "Ravenkeeper") rk.gameover_text = rk.info_text;
+          if (rk.role === "Ravenkeeper") {
+            rk.gameover_text = rk.info_text;
+            // If RK died on the same night they were poisoned, tag their info
+            markPoisonedInfoIfApplicable(rk);
+          }
         }
 
         // TODO: undertaker
@@ -2103,8 +2170,12 @@
           const y = targets[1] || targets[0];
 
           function setFTResultFt(res) {
-            appendInfoText(ft, `${x.name}/${y.name} ${res ? "Yes" : "No"}`);
-            if (!ft.evil) ft.gameover_text = ft.info_text;
+            appendInfoText(
+              ft,
+              `${x.name}/${y.name} ${res ? "Yes" : "No"}`,
+              !!ft.droisoned
+            );
+            if (!ft.evil) rebuildGameoverFromInfoLog(ft);
           }
 
           const realFT = ft.role === "Fortune Teller";
