@@ -1634,7 +1634,6 @@
           const { left, right } = getLivingNeighbors(empath.seat);
           const n1 = gameStatePlayers[left];
           const n2 = gameStatePlayers[right];
-          console.log(n1, n2);
 
           const soberEmpath = !empath.droisoned && !empath.evil;
           const evilEmpath = empath.evil;
@@ -1787,11 +1786,65 @@
           if (target.role === "Soldier" && !target.droisoned) {
             targetDies = false;
           }
-          if (monkSaved && monkSaved.seat === target.seat) {
+          if (monkSaved === target.seat) {
             targetDies = false;
           }
 
-          // TODO: if its the mayor, it always bounces the first time, then 1/n bounces the next time
+          // Mayor protection mechanic
+          if (target.role === "Mayor" && !target.droisoned && targetDies) {
+            target.mayorAttackCount = target.mayorAttackCount || 0;
+            target.mayorAttackCount++;
+
+            const n = target.mayorAttackCount;
+            const protectionTriggers = n === 1 || percentTrue(100 / n);
+
+            if (protectionTriggers) {
+              targetDies = false;
+              // Find a different good player to die instead
+              const otherGoodPlayers = goodPlayers.filter(
+                (p) => p.seat !== target.seat && p.alive
+              );
+
+              let alternateVictim = null;
+              if (otherGoodPlayers.length > 0) {
+                alternateVictim = getRandomItem(otherGoodPlayers);
+              } else {
+                // If no good players available, kill a random minion instead
+                const minions = gameStatePlayers.filter(
+                  (p) => p.alive && p.type === "minion"
+                );
+                if (minions.length > 0) {
+                  alternateVictim = getRandomItem(minions);
+                }
+              }
+
+              // Kill the alternate victim instead (if they can die)
+              if (alternateVictim) {
+                let alternateCanDie = true;
+
+                // Check if alternate is a protected Soldier
+                if (
+                  alternateVictim.role === "Soldier" &&
+                  !alternateVictim.droisoned
+                ) {
+                  alternateCanDie = false;
+                }
+
+                // Check if alternate is protected by Monk
+                if (monkSaved === alternateVictim.seat) {
+                  alternateCanDie = false;
+                }
+
+                if (alternateCanDie) {
+                  const alternateToken =
+                    circleContainer.children[alternateVictim.seat];
+                  killPlayer(alternateToken, alternateVictim.seat, true);
+                  deferredDeaths.push(alternateVictim.seat);
+                  impKilledTonight = alternateVictim;
+                }
+              }
+            }
+          }
 
           if (targetDies) {
             const targetToken = circleContainer.children[target.seat];
@@ -2066,24 +2119,10 @@
         const unusedBluffs = bluffRNG.notSelected;
 
         if (selectedMinions.length === 3) {
-          // if there is spy, you get another free bluff! yay
-
           // i would have to rework a lot of code to make double claims work so honestly nah.
           // BOTC as a whole is not balanced around one person having all the info anyways
           // so i see this as acceptable for this game.
-
-          // if (spyInPlay) {
           demonBluffs.push(unusedBluffs[0]);
-          // } else {
-          //   // otherwise you just have to randomly claim something.
-          //   const roleToClaim = getRandomItems(
-          //     [...characters.townsfolk, ...characters.outsiders].filter(
-          //       (role) => role.name !== "Drunk"
-          //     ),
-          //     1
-          //   ).selected[0];
-          //   demonBluffs.push(roleToClaim);
-          // }
         }
         const ingamePlayers = shuffleArray(playerNames.slice(0, playerCount));
 
@@ -2166,6 +2205,10 @@
             player.actionmodeText = "Who should I check tonight?";
             // chosen target for the upcoming night's check (set by player during the day)
             player.rkChosenTarget = null;
+          }
+          // Mayor: track number of times attacked by Imp at night
+          if (player.role === "Mayor") {
+            player.mayorAttackCount = 0;
           }
         }
 

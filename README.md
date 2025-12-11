@@ -4,8 +4,6 @@ Empath
 
 Undertaker
 
-Mayor -- still needs the someone else might die property
-
 Poisoner
 
 Imp
@@ -31,6 +29,8 @@ Virgin
 Slayer
 
 Soldier
+
+Mayor
 
 Saint
 
