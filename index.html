@@ -2026,7 +2026,7 @@
           }
         }
 
-        const rk = getRoleIfInPlay("Ravenkeeper");
+        const rk = getAppearAsRoleIfInPlay("Ravenkeeper");
         if (impKilledTonight && rk && rk.seat === impKilledTonight.seat) {
           // if ravenkeeper has no chosen target pick a random one from living ppl, not yourself.
           if (!rk.rkChosenTarget) {
