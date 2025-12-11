@@ -4,7 +4,7 @@ Empath
 
 Undertaker
 
-Poisoner
+Poisoner -- needs better decision making
 
 Imp -- needs smarter nightkills
 
