@@ -1227,12 +1227,25 @@
       }
 
       function night1() {
-        // TODO: poisoner
-        // TODO: if the poisoner ever dies or catches a starpass, their poisoning is removed.
+        // Poisoner: on night 1, if alive, picks a player to poison.
+        // Track previous target for healing at the start of future nights.
         let poisoner = getRoleIfInPlay("Poisoner");
-        if (poisoner) {
-          // TODO: poison somebody good! maybe more likely to be someone next to the demon
-          // and if it's DEMON - good - EVIL, then you almost certainly want to poison that person.
+        if (poisoner && poisoner.alive) {
+          // pick a random living player other than the poisoner
+          const livingOthers = gameStatePlayers.filter(
+            (p) => p.alive && p.seat !== poisoner.seat && !p.evil
+          );
+          if (livingOthers.length > 0) {
+            const target = getRandomItem(livingOthers);
+            // If target is Drunk, they are already permanently droisoned; picking them does nothing
+            if (target.role !== "Drunk") {
+              target.droisoned = true;
+              poisoner.previousPoisonTarget = target.seat;
+            } else {
+              // ensure we don't track Drunk for healing
+              poisoner.previousPoisonTarget = null;
+            }
+          }
         }
 
         // picks a random good player and is more likely to pick someone neighboring the demon.
@@ -1727,8 +1740,36 @@
       }
 
       function othernights() {
-        // TODO: unpoison whoever was poisoned last night, but not The Drunk
-        // TODO: poisoner
+        // unpoison the previous poison target
+        const poisoner = getRoleIfInPlay("Poisoner");
+        if (poisoner && poisoner.previousPoisonTarget !== null) {
+          const prev = gameStatePlayers[poisoner.previousPoisonTarget];
+          if (prev && prev.role !== "Drunk") {
+            prev.droisoned = false;
+          }
+          poisoner.previousPoisonTarget = null;
+        }
+
+        // TODO: more intelligent poisoner stuff.
+        // if you have the grim, go crazy
+        // if you don't have the grim, don't poison a slayer who shot or a virgin with no ability. (unless you have no other choice)
+
+        // poisoner
+        if (poisoner && poisoner.alive) {
+          const livingOthers = gameStatePlayers.filter(
+            (p) => p.alive && p.seat !== poisoner.seat && !p.evil
+          );
+          if (livingOthers.length > 0) {
+            const target = getRandomItem(livingOthers);
+            if (target.role !== "Drunk") {
+              target.droisoned = true;
+              poisoner.previousPoisonTarget = target.seat;
+            } else {
+              // Drunk remains permanently droisoned; picking them does nothing
+              poisoner.previousPoisonTarget = null;
+            }
+          }
+        }
 
         // Monk protection selection
         let monkSaved = null;
@@ -2236,6 +2277,8 @@
             // whether this player has used their one-shot action
             shotUsed: false,
             droisoned: token.name === "Drunk",
+            // Poisoner-specific state: track last night's target
+            previousPoisonTarget: null,
             gameover_text,
           };
           gameStatePlayers.push(player);
