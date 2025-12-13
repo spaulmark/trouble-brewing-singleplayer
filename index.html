@@ -2121,7 +2121,7 @@
               const possibleLies = ["Poisoner", "Scarlet Woman", "Imp", "Spy"];
               if (checkIsBaronPossible()) possibleLies.push("Baron");
               if (rkTarget.type === "Townsfolk") possibleLies.push("Drunk");
-              seenrole = getRandomItem(possibleLies);
+              seenRole = getRandomItem(possibleLies);
             }
           }
           rk.info_text = `${seenPlayer} ${seenRole}`;
@@ -2205,11 +2205,95 @@
             undertaker.gameover_text = undertaker.info_text;
           }
         }
-        // TODO: empath
+        // empath
         const empath = getAppearsAsIfAlive("Empath");
         if (empath) {
-          // sober empath needs to keep track of who is being framed as evil/good for spy/recluse
-          // TODO: an evil empath should occasionally pretend to be poisoned.
+          const { left, right } = getLivingNeighbors(empath.seat);
+          const n1 = gameStatePlayers[left];
+          const n2 = gameStatePlayers[right];
+
+          // Update frame map each night:
+          // - if a target in frame_map died (impKilledTonight), replace with new living person
+          // - if all targets are dead, add a new random person
+          if (empath.frame_map) {
+            const aliveInFrameMap = empath.frame_map.filter(
+              (seat) => gameStatePlayers[seat] && gameStatePlayers[seat].alive
+            );
+
+            // Check if impKilledTonight is in the frame map
+            const impKilledInMap =
+              impKilledTonight &&
+              empath.frame_map.includes(impKilledTonight.seat);
+
+            if (impKilledInMap || aliveInFrameMap.length === 0) {
+              // Need to add/replace someone in the frame map
+              const impOrSw = (player) =>
+                player &&
+                (player.role === "Imp" || player.role === "Scarlet Woman");
+              const imp = getRoleIfInPlay("Imp");
+              const sw = getRoleIfInPlay("Scarlet Woman");
+
+              // Build exclusion set: empath, imp, SW, and current living frame map members
+              const excludedSeats = new Set([empath.seat]);
+              if (imp) excludedSeats.add(imp.seat);
+              if (sw) excludedSeats.add(sw.seat);
+              aliveInFrameMap.forEach((seat) => excludedSeats.add(seat));
+
+              // Build candidate pool
+              const candidates = gameStatePlayers.filter(
+                (p) => !excludedSeats.has(p.seat) && p.alive
+              );
+
+              if (candidates.length > 0) {
+                // Add a new person to the frame map
+                const newPerson = getRandomItem(candidates);
+                empath.frame_map.push(newPerson.seat);
+              } else {
+                // Only options are Imp, empath, and SW: can add the SW
+                if (sw && sw.alive && !empath.frame_map.includes(sw.seat)) {
+                  empath.frame_map.push(sw.seat);
+                }
+              }
+            }
+          }
+
+          const soberEmpath = !empath.droisoned && !empath.evil;
+          const evilEmpath = empath.evil;
+          const droisonedEmpath = empath.droisoned && !empath.evil;
+
+          let learnedNumber = 0;
+          const frameMap = empath.frame_map || [];
+
+          // sober+good empath gets true info, might misregister on recluse/spy
+          if (soberEmpath) {
+            [n1, n2].forEach((player) => {
+              if (
+                player &&
+                (player.evil ||
+                  (player.role === "Recluse" && empath.recluseEvil) ||
+                  (player.role === "Spy" && empath.spyEvil))
+              )
+                learnedNumber++;
+            });
+          } else if (droisonedEmpath || evilEmpath) {
+            // drunk/evil empath uses frame map to determine reported number
+            learnedNumber = [n1, n2].reduce(
+              (acc, player) =>
+                acc + (player && frameMap.includes(player.seat) ? 1 : 0),
+              0
+            );
+          }
+
+          const leftName = n1 ? n1.name : "None";
+          const rightName = n2 ? n2.name : "None";
+          appendInfoText(
+            empath,
+            `${leftName}/${rightName} ${learnedNumber}`,
+            !!empath.droisoned
+          );
+          if (!empath.evil) {
+            rebuildGameoverFromInfoLog(empath);
+          }
         }
         // Fortune Teller nightly checks: process chosen targets (if any) or pick randomly
 
