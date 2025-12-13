@@ -1,7 +1,5 @@
 Not Done:
 
-Empath
-
 Undertaker
 
 Poisoner -- needs better decision making
@@ -17,6 +15,8 @@ Librarian
 Investigator
 
 Chef
+
+Empath
 
 Fortune Teller
 
