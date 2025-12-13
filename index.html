@@ -1700,10 +1700,9 @@
           }
           chef.info_text = `${returnedEvilPairs}`;
         }
-        // TODO: empath
+        // empath
         let empath = getAppearAsRoleIfInPlay("Empath");
         if (empath) {
-          // TODO: night 1 empath.
           const { left, right } = getLivingNeighbors(empath.seat);
           const n1 = gameStatePlayers[left];
           const n2 = gameStatePlayers[right];
@@ -1712,11 +1711,66 @@
           const evilEmpath = empath.evil;
           const droisonedEmpath = empath.droisoned && !empath.evil;
 
-          // sober+good empath gets true info, might misregister on recluse/spy
-          // drunk empath gets false info
-          // evil empath frames their allies as good and may or may not claim a 1 or 2 on good ppl
+          // set up a frame map for a drunk/evil empath.
+          // if n2 is the SW/imp, n1 cannot be in the frame map
+          // if n1 is the SW/imp, n2 cannot be in the frame map
 
-          // TODO: calculate the chance of an empath 2 in every game i guess
+          // the frame map picks N evil players out of all the players (not the empath, imp, or SW)
+          // and says these are the evil ones.
+          const impOrSw = (player) =>
+            player &&
+            (player.role === "Imp" || player.role === "Scarlet Woman");
+          if (!empath.frame_map) {
+            // Determine how many seats should be considered "evil" for false info
+            const totalEvils = gameStatePlayers.filter((p) => p.evil).length;
+
+            const excludedSeats = new Set([empath.seat]);
+            gameStatePlayers.forEach((p) => {
+              if (impOrSw(p)) excludedSeats.add(p.seat);
+            });
+
+            if (impOrSw(n2) && n1) excludedSeats.add(n1.seat);
+            if (impOrSw(n1) && n2) excludedSeats.add(n2.seat);
+
+            const frameCandidates = gameStatePlayers.filter(
+              (p) => !excludedSeats.has(p.seat)
+            );
+            const selectCount = Math.min(totalEvils, frameCandidates.length);
+            empath.frame_map = getRandomItems(
+              frameCandidates,
+              selectCount
+            ).selected.map((p) => p.seat);
+          }
+
+          empath.spyEvil = flipCoin();
+          empath.recluseEvil = flipCoin();
+          let learnedNumber = 0;
+          const frameMap = empath.frame_map || [];
+          // sober+good empath gets true info, might misregister on recluse/spy
+          if (soberEmpath) {
+            [n1, n2].forEach((player) => {
+              if (
+                player.evil ||
+                (player.role === "Recluse" && empath.recluseEvil) ||
+                (player.role === "Spy" && empath.spyEvil)
+              )
+                learnedNumber++;
+            });
+          } else if (droisonedEmpath || evilEmpath) {
+            // drunk empath gets random info, but must make demon/SW look good.
+            // set up the frame map so that's the case
+            learnedNumber = [n1, n2].reduce(
+              (acc, player) =>
+                acc + (player && frameMap.includes(player.seat) ? 1 : 0),
+              0
+            );
+          }
+          // evil empath frames their allies as good and may or may not claim a 1 or 2 on good ppl
+          empath.info_text = `${n1.name}/${n2.name} ${learnedNumber}`;
+          if (!empath.evil) {
+            empath.gameover_text = empath.info_text;
+            markPoisonedInfoIfApplicable(empath);
+          }
         }
         // fortune teller
         let ft = getAppearAsRoleIfInPlay("Fortune Teller");
@@ -2155,6 +2209,7 @@
         const empath = getAppearsAsIfAlive("Empath");
         if (empath) {
           // sober empath needs to keep track of who is being framed as evil/good for spy/recluse
+          // TODO: an evil empath should occasionally pretend to be poisoned.
         }
         // Fortune Teller nightly checks: process chosen targets (if any) or pick randomly
 
