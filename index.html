@@ -670,6 +670,18 @@
         15: [13333, 17744, 7654, 1216, 53, 0],
       };
 
+      const empathNumbers = {
+        7: [16879, 20466, 2655],
+        8: [18879, 18829, 2292],
+        9: [20297, 17582, 2121],
+        10: [17619, 19346, 3035],
+        11: [18810, 18325, 2865],
+        12: [19917, 17450, 2633],
+        13: [17955, 18716, 3329],
+        14: [18866, 18100, 3034],
+        15: [19819, 17461, 2720],
+      };
+
       // --- Dom Elements ---
       const playerCountSelect = document.getElementById("player-count");
       const generateBtn = document.getElementById("generate-btn");
@@ -1116,7 +1128,6 @@
         return result && !result.droisoned;
       }
 
-      // TODO: this also bricks for doubleclaims. only the first guy gets info on n1
       function getAppearsAsIfAlive(role) {
         for (player of gameStatePlayers) {
           if (player.appears_as.role === role && player.alive) {
@@ -1126,7 +1137,6 @@
         return null;
       }
 
-      // TODO: this bricks for doubleclaims. only the first guy gets info on n1
       function getAppearAsRoleIfInPlay(role) {
         for (player of gameStatePlayers) {
           if (player.appears_as.role === role) {
