@@ -1767,10 +1767,13 @@
             );
           }
           // evil empath frames their allies as good and may or may not claim a 1 or 2 on good ppl
-          empath.info_text = `${n1.name}/${n2.name} ${learnedNumber}`;
+          appendInfoText(
+            empath,
+            `${n1.name}/${n2.name} ${learnedNumber}`,
+            !!empath.droisoned
+          );
           if (!empath.evil) {
-            empath.gameover_text = empath.info_text;
-            markPoisonedInfoIfApplicable(empath);
+            rebuildGameoverFromInfoLog(empath);
           }
         }
         // fortune teller
@@ -2356,7 +2359,7 @@
           if (ft.alive) ft.actionmodeText = "Who should I check tonight?";
         }
 
-        // Check for all evil win or demon win conditions
+        // Check for all evil wincon
         if (checkGameEndConditions()) {
           return;
         }
