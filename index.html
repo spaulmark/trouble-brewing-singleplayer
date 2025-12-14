@@ -1956,7 +1956,10 @@
           }
         }
 
-        // TODO: an imp bluffing monk won't kill his save target unless he has an SW.
+        // basically imp nightkills should support the highest value bluff. sw > imp. so if sw in play, sink a soldier kill once per game.
+        // espescially if you're on odd numbers and it doesnt give an extra execution
+
+        // TODO: an imp bluffing monk won't kill his save target unless he has an SW. (but if the SW is monk, dont kill the sw targets)
         // TODO: an imp bluffing soldier has a 1/(living players) chance to sink a kill once per game.
         // TODO: an evil team bluffing roles that frame (empath, FT, inv.) need to neutralize undertaker
 
@@ -2298,7 +2301,6 @@
         }
         // Fortune Teller nightly checks: process chosen targets (if any) or pick randomly
 
-        // TODO: a fortune teller who picks randomly will never randomly pick the person who died tonight to the imp.
         const ft = getAppearsAsIfAlive("Fortune Teller");
         if (ft) {
           // Remove pending notation before processing night result
