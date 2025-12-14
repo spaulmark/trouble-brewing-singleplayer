@@ -671,18 +671,6 @@
         15: [13333, 17744, 7654, 1216, 53, 0],
       };
 
-      const empathNumbers = {
-        7: [16879, 20466, 2655],
-        8: [18879, 18829, 2292],
-        9: [20297, 17582, 2121],
-        10: [17619, 19346, 3035],
-        11: [18810, 18325, 2865],
-        12: [19917, 17450, 2633],
-        13: [17955, 18716, 3329],
-        14: [18866, 18100, 3034],
-        15: [19819, 17461, 2720],
-      };
-
       // --- Dom Elements ---
       const playerCountSelect = document.getElementById("player-count");
       const generateBtn = document.getElementById("generate-btn");
@@ -1221,6 +1209,8 @@
         );
         player.gameover_text = parts.join(", ");
       }
+
+      // TODO: switch to pseudo-RNG and turn the game into wordle
 
       function checkIsBaronPossible() {
         const outsiderClaims = gameStatePlayers.filter(
@@ -1832,30 +1822,33 @@
               setFTResult(true);
             else setFTResult(false);
           } else {
-            // droisoned or evil FT: they learn YES if either seat is in the frame_map
-
-            // TODO: however for evil FT recluse behavior
-            // if my ally is bluffing recluse, 75% to learn a YES
-            // if i have spy and i am checking a real recluse, 75% to learn a YES
-
-            // so basically i care not if they're poisoned, just if they appear as recluse
-
-            if (ft.evil) {
-              const eitherIsRecluseClaim =
-                x.role === recluse ||
-                x.appears_as === recluse ||
-                y.role === recluse ||
-                y.appears_as === recluse;
-              //
-            }
-
-            // TODO: the todo above
-
+            // droisoned or evil FT: default to frame map lies
             const inFrame =
               ft.frame_map &&
               (ft.frame_map.includes(x.seat) || ft.frame_map.includes(y.seat));
 
-            setFTResult(!!inFrame);
+            // Evil FT special-case: recluse behavior with 75% trigger
+            let recluseYes = false;
+            if (ft.evil) {
+              const isRealRecluse = (p) => p && p.role === recluse;
+              const isFakeRecluseClaim = (p) =>
+                p &&
+                p.appears_as &&
+                p.appears_as.role === recluse &&
+                p.role !== recluse &&
+                p.evil;
+
+              const sawRealRecluse = isRealRecluse(x) || isRealRecluse(y);
+              const sawFakeRecluse =
+                isFakeRecluseClaim(x) || isFakeRecluseClaim(y);
+
+              // Fake (ally) recluse: always roll 75%
+              if (sawFakeRecluse && percentTrue(75)) recluseYes = true;
+              // Real recluse: only roll 75% if evils have the grim
+              else if (evilHasGrim && sawRealRecluse && percentTrue(75))
+                recluseYes = true;
+            }
+            setFTResult(!!(inFrame || recluseYes));
           }
         }
       }
