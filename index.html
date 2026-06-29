@@ -1851,6 +1851,73 @@
             setFTResult(!!(inFrame || recluseYes));
           }
         }
+        // undertaker frame map setup
+        let undertaker = getAppearAsRoleIfInPlay("Undertaker");
+        if (undertaker) {
+          // Initialize frame map on night 1
+          if (!undertaker.frame_map) {
+            // Determine how many evils are in the game
+            const totalEvils = gameStatePlayers.filter((p) => p.evil).length;
+            const framePlayers = totalEvils + 1; // X-1 players to frame
+
+            // Select X-1 random players (not the undertaker, imp, or SW) to be framed
+            const excludedSeats = new Set([undertaker.seat]);
+            gameStatePlayers.forEach((p) => {
+              if (p.role === "Imp" || p.role === "Scarlet Woman") {
+                excludedSeats.add(p.seat);
+              }
+            });
+
+            const frameCandidates = gameStatePlayers.filter(
+              (p) => !excludedSeats.has(p.seat)
+            );
+            const selectedFramePlayers = getRandomItems(
+              frameCandidates,
+              Math.min(framePlayers, frameCandidates.length)
+            ).selected;
+            undertaker.frame_map = selectedFramePlayers.map((p) => p.seat);
+
+            // Select 1 random townsfolk claim (not the undertaker, not in the undertaker's frame map)
+            // This is the seat that the undertaker will claim saw as "Drunk" when evil/droisoned
+            const townsfolkClaims = gameStatePlayers.filter(
+              (p) =>
+                p.appears_as.type === "townsfolk" &&
+                p.appears_as.role !== "Undertaker" &&
+                !undertaker.frame_map.includes(p.seat)
+            );
+
+            if (townsfolkClaims.length > 0) {
+              const fakeDrunkPlayer = getRandomItem(townsfolkClaims);
+              undertaker.fake_drunk_claim = fakeDrunkPlayer.seat;
+            } else {
+              // Fallback if no valid candidates
+              undertaker.fake_drunk_claim = null;
+            }
+
+            // Select X-1 random evil roles
+            const evilRoles = ["Poisoner", "Spy"];
+
+            // Only include Baron if checkIsBaronPossible()
+            if (checkIsBaronPossible()) {
+              evilRoles.push("Baron");
+            }
+
+            // Only include one of Imp/Scarlet Woman (randomly choose which)
+            if (flipCoin()) {
+              evilRoles.push("Imp");
+            } else {
+              evilRoles.push("Scarlet Woman");
+            }
+
+            // Shuffle and select X-1 roles
+            const selectedRoles = getRandomItems(
+              evilRoles,
+              Math.min(framePlayers, evilRoles.length)
+            ).selected;
+
+            undertaker.evil_role_bluffs = selectedRoles.map((r) => r.name || r);
+          }
+        }
       }
 
       function othernights() {
@@ -1864,17 +1931,30 @@
           poisoner.previousPoisonTarget = null;
         }
 
-        // TODO: more intelligent poisoner stuff.
-        // if you have the grim, go crazy
-        // if you don't have the grim, don't poison a slayer who shot or a virgin with no ability. (unless you have no other choice)
-
         // poisoner
         if (poisoner && poisoner.alive) {
           const livingOthers = gameStatePlayers.filter(
             (p) => p.alive && p.seat !== poisoner.seat && !p.evil
           );
           if (livingOthers.length > 0) {
-            const target = getRandomItem(livingOthers);
+            // avoid wasting on spent/ability-lost targets
+            const useless = livingOthers.filter(
+              (p) =>
+                (p.appears_as.role === "Slayer" && p.shotUsed) ||
+                (p.appears_as.role === "Virgin" && p.shotUsed)
+            );
+            const pool =
+              useless.length < livingOthers.length
+                ? livingOthers.filter((p) => !useless.includes(p))
+                : livingOthers;
+            let target;
+            if (evilHasGrim) {
+              const priority = ["Empath", "Fortune Teller", "Undertaker", "Monk", "Ravenkeeper"];
+              const hiValue = pool.filter((p) => priority.includes(p.role));
+              target = hiValue.length > 0 ? getRandomItem(hiValue) : getRandomItem(pool);
+            } else {
+              target = getRandomItem(pool);
+            }
             console.log("Poisoner hit", target.name);
             if (target.role !== "Drunk") {
               target.droisoned = true;
@@ -1956,13 +2036,6 @@
           }
         }
 
-        // basically imp nightkills should support the highest value bluff. sw > imp. so if sw in play, sink a soldier kill once per game.
-        // espescially if you're on odd numbers and it doesnt give an extra execution
-
-        // TODO: an imp bluffing monk won't kill his save target unless he has an SW. (but if the SW is monk, dont kill the sw targets)
-        // TODO: an imp bluffing soldier has a 1/(living players) chance to sink a kill once per game.
-        // TODO: an evil team bluffing roles that frame (empath, FT, inv.) need to neutralize undertaker
-
         // Imp night kill
         const imp = getRoleIfAlive("Imp");
         let impKilledTonight = null;
@@ -1978,7 +2051,48 @@
           const killTargets =
             goodPlayers.length === 0 ? evilPlayers : goodPlayers;
 
-          const target = getRandomItem(killTargets);
+          const impBluff = imp.appears_as.role;
+          let filteredKillTargets = killTargets;
+
+          // monk bluff: don't kill the protected target unless SW is alive to absorb a starpass
+          if (
+            impBluff === "Monk" &&
+            !getRoleIfAlive("Scarlet Woman") &&
+            imp.monkChosenTarget != null
+          ) {
+            const without = killTargets.filter(
+              (p) => p.seat !== imp.monkChosenTarget
+            );
+            if (without.length > 0) filteredKillTargets = without;
+          }
+
+          // soldier bluff: once per game, sink a kill by targeting the real soldier
+          if (impBluff === "Soldier" && !imp.soldierSinkUsed) {
+            const realSoldier = filteredKillTargets.find(
+              (p) => p.role === "Soldier" && !p.droisoned
+            );
+            if (
+              realSoldier &&
+              percentTrue(Math.round(100 / filteredKillTargets.length))
+            ) {
+              filteredKillTargets = [realSoldier];
+              imp.soldierSinkUsed = true;
+            }
+          }
+
+          // if evil bluffs framing roles (Empath/FT/Inv), prioritize killing Undertaker
+          const framingBluffs = ["Empath", "Fortune Teller", "Investigator"];
+          const evilIsFraming = gameStatePlayers.some(
+            (p) => p.evil && framingBluffs.includes(p.appears_as.role)
+          );
+          if (evilIsFraming && !imp.soldierSinkUsed) {
+            const ukTarget = filteredKillTargets.find(
+              (p) => p.role === "Undertaker" && !p.droisoned
+            );
+            if (ukTarget && percentTrue(40)) filteredKillTargets = [ukTarget];
+          }
+
+          const target = getRandomItem(filteredKillTargets);
 
           // monk and soldier targets can't die
           let targetDies = true;
@@ -2136,8 +2250,6 @@
           }
         }
 
-        // TODO: undertaker
-
         const undertaker = getAppearsAsIfAlive("Undertaker");
         if (undertaker && previousExecution) {
           // sober undertaker: see the role of the preivous executee
@@ -2166,19 +2278,12 @@
               learnRealInfo = true;
             }
           } else if (droisonedUndertaker || (evilUndertaker && !evilHasGrim)) {
-            // droisoned and evil spyless undertaker are the same thing
-            // that way it gives more credibility to evil players who don't have a spy
-            // TODO: random stuff here. confirm evil players, frame good players, or make random guesses on any player.
-            //
-            // however they might want to frame a fake invest ping as real.
-            // they might want to frame a fake fortune teller yes as an imp.
-            // they might want to support a fake empath's story.
-            // complicated business around here for real.
-            //
+            if (percentTrue(60)) frameGoodPlayer = true;
+            else learnRandomGarbage = true;
           } else if (evilUndertaker) {
-            // if evil has a spy they can be a "real" undertaker except they can frame a few good players here and there
-            // TODO: this
-            // an undertaker with a spy sees info and can corraborate stories, real or fake
+            // spy-assisted: mostly real info but occasionally frame
+            if (percentTrue(80)) learnRealInfo = true;
+            else frameGoodPlayer = true;
           }
 
           if (learnRealInfo) {
@@ -2188,22 +2293,25 @@
             infotext = `${previousExecution.name} ${previousExecution.appears_as.role}`;
             appendPreviousInfo(undertaker, previousExecution.appears_as.role);
           } else if (frameGoodPlayer) {
-            // TODO: draw from a pool of evil roles, you could repeat something you saw. but make it less likely? idk.
-            // you can learn imp only one time,,, hmm
-            // TODO: the bluffs here are complicated and contextual lets do other stuff first...??????
-            //
-            // "evil pool" contains Drunk if they are a townsfolk,
-            // it includes Baron if baron is possible.
+            const used = undertaker.previous_info || [];
+            const bluffs = undertaker.evil_role_bluffs || ["Poisoner", "Spy"];
+            const fresh = bluffs.filter((r) => !used.includes(r));
+            const bluffRole = getRandomItem(fresh.length > 0 ? fresh : bluffs);
+            infotext = `${previousExecution.name} ${bluffRole}`;
+            appendPreviousInfo(undertaker, bluffRole);
           } else if (learnRandomGarbage) {
-            // learn a random role you haven't learned yet! but not undertaker.
-            // TODO: this as well
+            const allRoles = [
+              ...characters.townsfolk.map((r) => r.name),
+              ...characters.outsiders.filter((r) => r.name !== "Drunk").map((r) => r.name),
+              "Poisoner", "Spy",
+            ].filter((r) => r !== "Undertaker" && r !== previousExecution.role);
+            const used = undertaker.previous_info || [];
+            const unseen = allRoles.filter((r) => !used.includes(r));
+            const garbageRole = getRandomItem(unseen.length > 0 ? unseen : allRoles);
+            infotext = `${previousExecution.name} ${garbageRole}`;
+            appendPreviousInfo(undertaker, garbageRole);
           }
 
-          // recluse could be evil; spy could be good
-          // if no execution, always empty string
-          // poisoned: see Drunk, garbage, evil role... maybe true info on a good player but not an evil one for sure.
-          // evil: see allies as good.
-          // if spy in play, can confirm good ppl. can also frame people as evil.
           appendInfoText(undertaker, infotext);
           if (!evilUndertaker) {
             undertaker.gameover_text = undertaker.info_text;
