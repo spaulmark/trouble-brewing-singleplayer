@@ -2321,9 +2321,13 @@
           appendPreviousInfo(undertaker, previousExecution.appears_as.role);
         } else if (frameGoodPlayer) {
           const used = undertaker.previous_info || [];
-          const bluffs = undertaker.evil_role_bluffs || ["Poisoner", "Spy"];
-          const fresh = bluffs.filter((r) => !used.includes(r));
-          const bluffRole = getRandomItem(fresh.length > 0 ? fresh : bluffs);
+          // expand to all 4 evil roles so the pool never runs dry on a single entry
+          const allEvil = [...new Set([
+            ...(undertaker.evil_role_bluffs || []),
+            "Poisoner", "Spy", "Imp", "Scarlet Woman",
+          ])];
+          const fresh = allEvil.filter((r) => !used.includes(r));
+          const bluffRole = getRandomItem(fresh.length > 0 ? fresh : allEvil);
           infotext = `${previousExecution.name} ${bluffRole}`;
           appendPreviousInfo(undertaker, bluffRole);
         } else if (learnRandomGarbage) {
